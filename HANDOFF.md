@@ -147,3 +147,21 @@ Verification:
 Release gate: commit, push main, run `npm run deploy` and repeat the five-direction smoke over HTTPS.
 
 Rework: 3 cycles for push rearming after retraction, keeping directional heads visible near frame edges, and reducing shield glow during release. Token usage: unavailable.
+
+## Doctor Strange cast power and light spill
+
+Status: cast size, brightness, spark count and duration respond to hand speed. Forward casts use the rate of apparent palm growth and offer a longer window for gentle pushes. Directional casts use normalized screen-space velocity. The original manual keys use a fixed medium power.
+
+Contract: gesture speed is measured on video sample timestamps. A 275 ms colored flash follows local face and casting-hand anchors, with distance falloff and a screen blend that preserves webcam detail. The optional face landmark model loads when Strange requests it and samples no more than once per 175 ms. The same lighting layer is composited into saved PNGs and is hidden between casts.
+
+Changed: `app.js`, `index.html`, `styles.css`, `studio/{arcane,renderer,strange-gesture,strange-light,tracking,tracking-worker,vision}.js`, `test/strange-gesture.test.js`, `HANDOFF.md`.
+
+Verification:
+- `npm test` (25), `npm run build` and `git diff --check` passed.
+- `node /tmp/universe-strange-power-qa.cjs` passed in Chrome. With the same displacement, gentle and fast casts reached 54.9 and 93.3 px after approximately 165 ms. The face and palm regions both received a stronger light pulse, the far corner received none, and PNG export and pulse expiry passed. Inspected both PNGs.
+- `REAL_TRACKING=1 node /tmp/universe-strange-power-qa.cjs` passed with genuine MediaPipe face and hand landmarks on a moving webcam fixture. Actual room lighting and physical webcams were not exercised.
+- `node /tmp/universe-strange-casts.cjs` passed all five directions with the lighting layer in its recording, plus keyboard, mobile, PNG and the Gojo switch. Chrome played all 101 frames at 1×. `CHECK_OFFSCREEN=1 node /tmp/universe-arcane-qa.cjs`, `node /tmp/universe-arcane-two-hands.cjs`, and `GOJO_SMOKE=fixture node /tmp/universe-fashn-strange-regression.cjs` passed.
+
+Release gate: commit, push main, run `npm run deploy`, then repeat the gentle and strong camera smoke over HTTPS.
+
+Rework: 1 cycle to separate wave travel from fade duration and make the size difference visible at equal elapsed time. Token usage: unavailable.

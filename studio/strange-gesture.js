@@ -1,4 +1,4 @@
-import { mapPoint } from './runtime.js';
+import { clamp, mapPoint } from './runtime.js';
 
 export const STRANGE_DIRECTIONS = {
   forward: [0, 0], left: [-1, 0], right: [1, 0], up: [0, -1], down: [0, 1],
@@ -6,6 +6,7 @@ export const STRANGE_DIRECTIONS = {
 
 const fingers = [[6, 8], [10, 12], [14, 16], [18, 20]];
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const powerFromSpeed = (speed, slow, fast) => clamp((speed - slow) / (fast - slow), 0, 1);
 
 function openPalm(points, frame) {
   if (points.length < 21) return null;
@@ -29,27 +30,33 @@ function openPalm(points, frame) {
   };
 }
 
-function directionOf(samples, palm, frame, forwardRelease) {
+function gestureOf(samples, palm, frame, forwardRelease) {
   if (samples.length < 3) return null;
-  const start = samples[0];
+  const oldest = samples[0];
   const previous = samples.at(-2);
+  if (palm.time - oldest.time < 85) return null;
+
+  // Landmarks report depth relative to the wrist. Use growth across both axes
+  // from the recent farthest pose, after the hand has had time to retract.
+  if (!forwardRelease && palm.scale > previous.scale * 1.02) {
+    let far = oldest;
+    for (let i = 1; i < samples.length - 2 && palm.time - samples[i].time >= 85; i++) {
+      if (samples[i].scale < far.scale) far = samples[i];
+    }
+    if (palm.scale >= far.scale * 1.28 && palm.length >= far.length * 1.17 &&
+        palm.width >= far.width * 1.17 && distance(palm, far) < far.scale * .92) {
+      const speedFrom = sample => Math.log(palm.scale / sample.scale) * 1000 / (palm.time - sample.time);
+      const speed = Math.max(speedFrom(far), speedFrom(samples.at(-3)));
+      return { direction: 'forward', power: powerFromSpeed(speed, .75, 3.30) };
+    }
+  }
+
+  const start = samples.find(sample => palm.time - sample.time <= 290);
   const elapsed = palm.time - start.time;
   if (elapsed < 85) return null;
   const dx = palm.x - start.x;
   const dy = palm.y - start.y;
   const growth = palm.scale / start.scale;
-
-  // Landmarks report depth relative to the wrist. Use growth across both axes
-  // from the recent farthest pose, after the hand has had time to retract.
-  if (!forwardRelease && palm.scale > previous.scale * 1.04) {
-    let far = start;
-    for (let i = 1; i < samples.length - 2 && palm.time - samples[i].time >= 85; i++) {
-      if (samples[i].scale < far.scale) far = samples[i];
-    }
-    if (palm.scale >= far.scale * 1.32 && palm.length >= far.length * 1.18 &&
-        palm.width >= far.width * 1.18 && distance(palm, far) < far.scale * .92) return 'forward';
-  }
-
   const horizontal = Math.abs(dx) >= Math.abs(dy);
   const delta = horizontal ? dx : dy;
   const perpendicular = horizontal ? dy : dx;
@@ -60,8 +67,12 @@ function directionOf(samples, palm, frame, forwardRelease) {
       recent * Math.sign(delta) < Math.max(4, start.scale * .13) ||
       Math.abs(delta) / elapsed < extent * .00053) return null;
 
-  if (horizontal) return dx < 0 ? 'left' : 'right';
-  return dy < 0 ? 'up' : 'down';
+  const direction = horizontal ? (dx < 0 ? 'left' : 'right') : (dy < 0 ? 'up' : 'down');
+  const recentStart = samples.at(-3);
+  const recentDelta = horizontal ? palm.x - recentStart.x : palm.y - recentStart.y;
+  const speed = Math.max(Math.abs(delta) / elapsed,
+    Math.sign(delta) * recentDelta / (palm.time - recentStart.time)) * 1000 / extent;
+  return { direction, power: powerFromSpeed(speed, .55, 2.35) };
 }
 
 export function createStrangeGesture() {
@@ -91,17 +102,17 @@ export function createStrangeGesture() {
           continue;
         }
         if (track.releaseBelow && palm.scale <= track.releaseBelow) track.releaseBelow = 0;
-        while (track.samples.length && now - track.samples[0].time > 290) track.samples.shift();
+        while (track.samples.length && now - track.samples[0].time > 415) track.samples.shift();
         if (track.samples.at(-1)?.time === now) continue;
         track.samples.push({ ...palm, time: now });
         if (now < nextCast || action) continue;
 
-        const direction = directionOf(track.samples, track.samples.at(-1), frame, track.releaseBelow);
-        if (!direction) continue;
+        const gesture = gestureOf(track.samples, track.samples.at(-1), frame, track.releaseBelow);
+        if (!gesture) continue;
         nextCast = now + 520;
-        if (direction === 'forward') track.releaseBelow = palm.scale / 1.19;
+        if (gesture.direction === 'forward') track.releaseBelow = palm.scale / 1.19;
         track.samples.length = 0;
-        action = { direction, x: palm.x, y: palm.y, scale: palm.scale };
+        action = { ...gesture, x: palm.x, y: palm.y, scale: palm.scale, handId: hand.id };
       }
       return action;
     },

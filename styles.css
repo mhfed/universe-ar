@@ -80,6 +80,7 @@ h3 { font-size: .875rem; font-weight: 620; }
 .stage video, .stage canvas { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
 .stage video { object-fit: contain; transform: scaleX(-1); }
 .stage canvas { pointer-events: none; }
+#strange-light { mix-blend-mode: screen; }
 .viewfinder { position: absolute; inset: 19px; pointer-events: none; }
 .viewfinder i { position: absolute; width: 23px; height: 23px; border: solid #b9b4ac80; border-width: 1px 0 0 1px; }
 .viewfinder i:nth-child(2) { top: 0; right: 0; transform: rotate(90deg); }

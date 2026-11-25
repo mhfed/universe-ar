@@ -46,11 +46,11 @@ export async function openTracking(mode, signal, preferWorker = true) {
       signal.throwIfAborted();
       return {
         kind: 'worker',
-        async detect(video, now) {
+        async detect(video, now, trackFace) {
           const image = await createImageBitmap(video);
           try {
             signal.throwIfAborted();
-            return await client.send({ type: 'frame', image, now }, [image]);
+            return await client.send({ type: 'frame', image, now, trackFace }, [image]);
           } finally {
             image.close();
           }

@@ -2,10 +2,12 @@ import { FilesetResolver, HandLandmarker, FaceLandmarker, PoseLandmarker } from 
 
 const asset = path => new URL('../' + path, import.meta.url).href;
 const fileset = () => FilesetResolver.forVisionTasks(asset('vendor/mediapipe/wasm'));
+const faceAnchors = [33,263,152,1,10];
 
 export async function openVision(mode, { worker = false } = {}) {
   const files = await fileset();
   const models = [];
+  let closed = false;
   async function create(Model, path, options) {
     // Use a fresh canvas for the CPU retry after a delegate initialization error.
     for (const delegate of ['GPU', 'CPU']) {
@@ -16,15 +18,21 @@ export async function openVision(mode, { worker = false } = {}) {
           ...(worker ? { canvas: new OffscreenCanvas(1, 1) } : {}),
           ...options,
         });
+        if (closed) {
+          task.close();
+          return null;
+        }
         models.push(task);
         return task;
       } catch (error) {
+        if (closed) return null;
         if (delegate === 'CPU') throw error;
       }
     }
   }
 
   const close = () => {
+    closed = true;
     for (const task of models.splice(0)) {
       try { task.close(); } catch (error) { console.warn('Không đóng được bộ nhận diện', error); }
     }
@@ -32,14 +40,32 @@ export async function openVision(mode, { worker = false } = {}) {
   try {
     if (mode !== 'looks') {
       const hands = await create(HandLandmarker, 'hand_landmarker.task', { numHands: 2 });
+      let faceRequested = false;
+      let faceModel;
+      let facePoints = null;
+      let nextFace = 0;
       return {
         close,
-        detect(image, now) {
+        detect(image, now, trackFace) {
           const result = hands.detectForVideo(image, now);
           const handedness = result.handedness ?? result.handednesses ?? [];
+          if (trackFace && !faceRequested) {
+            faceRequested = true;
+            void create(FaceLandmarker, 'face_landmarker.task', { numFaces: 1 })
+              .then(model => { faceModel = model; }, () => {});
+          }
+          if (trackFace && faceModel && now >= nextFace) {
+            nextFace = now + 175;
+            try {
+              const points = faceModel.detectForVideo(image, now).faceLandmarks[0];
+              facePoints = points ? faceAnchors.map(i => points[i]) : null;
+            } catch {
+              facePoints = null;
+            }
+          }
           return { hands: result.landmarks.map((points, index) => ({
             id: handedness[index]?.[0]?.categoryName || String(index), points,
-          })) };
+          })), face: trackFace ? facePoints : null };
         },
       };
     }
@@ -51,7 +77,7 @@ export async function openVision(mode, { worker = false } = {}) {
       close,
       detect(image, now) {
         const faceLandmarks = face.detectForVideo(image, now).faceLandmarks[0];
-        const facePoints = faceLandmarks ? [33,263,152,1,10].map(i => faceLandmarks[i]) : null;
+        const facePoints = faceLandmarks ? faceAnchors.map(i => faceLandmarks[i]) : null;
         if (tick++ % 2 === 0) {
           const points=pose.detectForVideo(image,now).landmarks[0];
           body=points ? [11,12,13,14,15,16,23,24].map(i=>

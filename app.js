@@ -24,6 +24,7 @@ const selected = { avengers: universes.avengers[0], wibu: universes.wibu[0] };
 const scene = { mode: 'effects', profile: selected.avengers, video, live: false, result: null, pointer: null, lens: null, still: null };
 const renderer = createRenderer(byId('effects'), () => scene, {
   strangeCanvas: byId('strange-effects'),
+  strangeLight: byId('strange-light'),
   onStrangeElement: name => say('Doctor Strange · ' + name),
 });
 const gesture = createGesture();
@@ -113,10 +114,10 @@ function stopTracking() {
   clearResult();
 }
 
-function consume(result, now) {
+function consume(result, now, sampledAt) {
   scene.result = { ...result, received: now };
   renderer.markResult();
-  if (renderer.trackStrange(result.hands, now)) return;
+  if (renderer.trackStrange(result.hands, sampledAt)) return;
   if (!canCast() || !result.hands?.length) {
     if (canCast()) gesture.update([], now);
     return;
@@ -186,8 +187,9 @@ async function startTracking(preferWorker = true) {
       lastMedia = media;
       const start = performance.now();
       try {
-        const result = await engine.detect(video, now);
-        if (!signal.aborted && !document.hidden) consume(result, performance.now());
+        const trackFace = scene.mode === 'effects' && scene.profile.id === 'strange';
+        const result = await engine.detect(video, now, trackFace);
+        if (!signal.aborted && !document.hidden) consume(result, performance.now(), now);
         failures = 0;
       } catch (error) {
         if (signal.aborted) return;

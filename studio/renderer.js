@@ -5,6 +5,7 @@ import { createGojoEffects } from './gojo-power.js';
 import { resolveGojoEnergy } from './gojo-geometry.js';
 import { createArcaneEngine } from './arcane.js';
 import { createStrangeGesture, STRANGE_DIRECTIONS } from './strange-gesture.js';
+import { paintStrangeLight, STRANGE_FLASH_MS } from './strange-light.js';
 
 const TAU = Math.PI * 2;
 const circle = (ctx, x, y, r) => {
@@ -207,14 +208,16 @@ function drawPower(ctx, profile, x, y, r, time, strength = 1) {
   ctx.restore();
 }
 
-export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeElement }) {
+export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, onStrangeElement }) {
   const ctx = canvas.getContext('2d', { alpha: true });
+  const lightCtx = strangeLight.getContext('2d', { alpha: true });
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let arcane;
   let arcaneAnimating = false;
   let arcaneHold = false;
   let arcaneSizeDirty = true;
   let stageVisible = true;
+  let strangeFlash = null;
   const strangeGesture = createStrangeGesture();
   const noHand = { visible: false };
 
@@ -306,6 +309,23 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
   let burst = null;
   const smoothHands = new Map();
 
+  function drawStrangeLight(now, frame, shown, demoFace, demoPalm) {
+    const age = strangeFlash && Math.max(0, now - strangeFlash.at);
+    if (!strangeFlash || age >= STRANGE_FLASH_MS) {
+      strangeLight.hidden = true;
+      strangeFlash = null;
+      return;
+    }
+    const face = frame && shown?.face ? shown.face.map(point => mapPoint(point, frame)) : demoFace;
+    const hands = frame ? shown?.hands : null;
+    const castingHand = hands?.find(hand => hand.id === strangeFlash.handId) ??
+      (strangeFlash.handId === undefined ? hands?.[0] : null);
+    const hand = castingHand?.points.map(point => mapPoint(point, frame));
+    lightCtx.clearRect(0, 0, w, h);
+    paintStrangeLight(lightCtx, strangeFlash, age, face, hand, demoPalm, reduce.matches);
+    strangeLight.hidden = !(face || hand || demoPalm);
+  }
+
   function resize(width, height) {
     w = Math.max(1, width);
     h = Math.max(1, height);
@@ -313,6 +333,9 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(canvas.width / w, 0, 0, canvas.height / h, 0, 0);
+    strangeLight.width = Math.max(1, Math.round(w * .75));
+    strangeLight.height = Math.max(1, Math.round(h * .75));
+    lightCtx.setTransform(strangeLight.width / w, 0, 0, strangeLight.height / h, 0, 0);
     arcaneSizeDirty = true;
     strangeGesture.reset();
     invalidate();
@@ -341,7 +364,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
     const useArcane = hasStrangeEffects();
     strangeCanvas.toggleAttribute('hidden', !useArcane);
     if (useArcane) burst = null;
-    const animated = Boolean(burst || (powers && !reduce.matches && (demo || still || shown?.hands?.length))
+    const animated = Boolean(burst || strangeFlash || (powers && !reduce.matches && (demo || still || shown?.hands?.length))
       || (useArcane && arcaneAnimating));
     if (dirty || animated || powers && (!demo && smoothHands.size)) {
       const redrawBase = dirty || !useArcane;
@@ -351,6 +374,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
       const r = Math.min(w, h) * .22;
       let demoX = w * .66;
       let demoY = h * .55;
+      let demoFaceLight;
       const preview = combined && gojoPreview.naturalWidth ? gojoPreview : portrait;
       if (demo && preview.naturalWidth) {
         const scale = Math.max(w / preview.naturalWidth, h / preview.naturalHeight);
@@ -361,6 +385,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
         if (redrawBase) ctx.drawImage(preview, left, top, pw, ph);
         const map = ([x,y]) => ({ x: left + x*pw, y: top + y*ph });
         ({ x: demoX, y: demoY } = map(demoHand));
+        if (strangeFlash) demoFaceLight = demoFace.map(map);
         if (!combined && mode !== 'effects') outfit(profile,demoFace.map(map),demoPose.map(map),demoBody.map(map));
       }
       if (still) {
@@ -374,6 +399,9 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
       }
       const frame = live && video.videoWidth ? fitFrame(w,h,video.videoWidth,video.videoHeight) : null;
       const mapSample = p => p ? mapPoint(p,frame) : null;
+      if (strangeFlash || !strangeLight.hidden) {
+        drawStrangeLight(now, frame, shown, demoFaceLight, demo ? { x: demoX, y: demoY } : null);
+      }
       if (shown && frame && mode === 'looks' && !lens) {
         outfit(profile,shown.face?.map(mapSample),shown.pose?.map(mapSample),shown.body?.map(mapSample));
       }
@@ -462,15 +490,16 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
             gojoEffects.cast(center,r,age,t,effectScene);
           } else {
           const opacity = 1 - age / .98;
+          const radius = burst.power === undefined ? r : r * (.46 + .86 * burst.power);
           ctx.save();
           ctx.globalAlpha = opacity;
           ctx.strokeStyle = profile.color;
           ctx.lineWidth = 2;
-          circle(ctx, center.x, center.y, r * (.45 + age * 1.8));
+          circle(ctx, center.x, center.y, radius * (.45 + age * 1.8));
           ctx.stroke();
           if (!reduce.matches) for (const spark of sparks) {
             if (age > spark.life) continue;
-            const distance = r * .31 + age * spark.speed;
+            const distance = radius * .31 + age * spark.speed;
             ctx.globalAlpha = (1 - age / spark.life) * .9;
             const dx = Math.cos(spark.angle);
             const dy = Math.sin(spark.angle);
@@ -484,7 +513,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
             ctx.stroke();
           }
           ctx.restore();
-          drawPower(ctx, profile, center.x, center.y, r * (.56 + age * .7), t * 1.8, opacity);
+          drawPower(ctx, profile, center.x, center.y, radius * (.56 + age * .7), t * 1.8, opacity);
           }
         }
       }
@@ -500,11 +529,15 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
 
   function strangeCast(direction, point) {
     if (!isStrangeScene()) return;
+    const at = performance.now();
     if (hasStrangeEffects()) {
-      arcane.cast(direction, point);
+      strangeFlash = { ...arcane.cast(direction, point), at };
       arcaneAnimating = true;
     } else {
-      burst = { point, direction, at: performance.now() };
+      const power = point?.power ?? .60;
+      const origin = point ?? { x: w * .66, y: h * .55 };
+      strangeFlash = { ...origin, scale: point?.scale ?? Math.min(w,h) * .13, power, color: [1,.42,.06], at };
+      burst = { point: origin, direction, power, at };
     }
     invalidate();
   }
@@ -549,6 +582,8 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
       gojoPalms=[];
       fusion = 0;
       arcane?.reset();
+      strangeFlash = null;
+      strangeLight.hidden = true;
       strangeGesture.reset();
       arcaneHold = false;
       arcaneAnimating = false;
@@ -587,6 +622,11 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
         out.restore();
       }
       out.drawImage(canvas, 0, 0);
+      if (!strangeLight.hidden) {
+        out.globalCompositeOperation = 'screen';
+        out.drawImage(strangeLight, 0, 0, shot.width, shot.height);
+        out.globalCompositeOperation = 'source-over';
+      }
       if (!strangeCanvas.hidden) out.drawImage(strangeCanvas, 0, 0, shot.width, shot.height);
       return new Promise((resolve, reject) => shot.toBlob(blob =>
         blob ? resolve(blob) : reject(new Error('Không tạo được ảnh PNG.')), 'image/png'));

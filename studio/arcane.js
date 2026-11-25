@@ -223,20 +223,24 @@ export function createArcaneEngine(canvas, onElementChange) {
     const y = point?.y ?? hand?.y ?? engine.viewH * .55;
     const extent = Math.min(engine.viewW, engine.viewH);
     const scale = clamp(point?.scale ?? hand?.palmScale ?? extent * .13, extent * .055, extent * .22);
+    const power = clamp(point?.power ?? .60, 0, 1);
     const forward = direction === 'forward';
-    casts.push({ x, y, dx, dy, scale, age: 0, duration: forward ? .72 : .58 });
+    const travelTime = forward ? .72 : .58;
+    const duration = travelTime * (.70 + power * .50);
+    casts.push({ x, y, dx, dy, scale, power, age: 0, duration, travelTime });
     if (casts.length > 3) casts.shift();
 
     const [red, green, blue] = engine.theme.sparkRgb;
-    const count = forward ? 125 : 90;
+    const count = Math.round((forward ? 125 : 90) * (.32 + power * 1.05));
     for (let i = 0; i < count; i++) {
       const a = Math.random() * Math.PI * 2;
       const spread = Math.random() * scale * .46;
-      const speed = 3 + Math.random() * 16;
+      const speed = (3 + Math.random() * 16) * (.58 + power * .68);
       emitSpark(x + Math.cos(a) * spread, y + Math.sin(a) * spread,
         dx * 9 + Math.cos(a) * speed, dy * 9 + Math.sin(a) * speed,
         .22 + Math.random() * .55, red, green, blue, 1);
     }
+    return { x, y, scale, power, color: engine.theme.sparkRgb, handId: point?.handId };
   }
 
   function updateCasts(dt) {
@@ -248,21 +252,23 @@ export function createArcaneEngine(canvas, onElementChange) {
 
     const extent = Math.min(engine.viewW, engine.viewH);
     for (let i = 0; i < casts.length; i++) {
-      const { x, y, dx, dy, scale, age, duration } = casts[i];
+      const { x, y, dx, dy, scale, power, age, duration, travelTime } = casts[i];
       const progress = age / duration;
-      const brightness = (1 - progress) ** .7 * 3.5;
+      const travel = Math.min(1, age / travelTime);
+      const reach = .46 + power * .86;
+      const brightness = (1 - progress) ** .7 * (1.45 + power * 3.45);
       let headX = x;
       let headY = y;
-      let width = scale * .24 + progress ** 1.62 * extent * 1.12;
-      let trail = scale * (.22 + .56 * progress);
+      let width = scale * (.17 + power * .12) + travel ** 1.62 * extent * 1.12 * reach;
+      let trail = scale * (.22 + .56 * progress) * reach;
       if (dx || dy) {
         const toEdge = dx ? (dx > 0 ? engine.viewW - x : x) : (dy > 0 ? engine.viewH - y : y);
         const distance = clamp(toEdge + scale * .55, extent * .23, extent * .92);
-        const advance = distance * progress * (1.52 - .52 * progress);
+        const advance = distance * reach * travel * (1.52 - .52 * travel);
         headX += dx * advance;
         headY += dy * advance;
-        width = scale * (dx ? 1.02 : .54) * (1 + progress * .38);
-        trail = scale * (dx ? 2.6 : 4.1) * (.64 + progress * .55);
+        width = scale * reach * (dx ? 1.02 : .54) * (1 + progress * .38);
+        trail = scale * reach * (dx ? 2.6 : 4.1) * (.64 + progress * .55);
       }
       const offset = i * 4;
       castGeometry[offset] = headX;

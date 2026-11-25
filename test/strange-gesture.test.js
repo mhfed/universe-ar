@@ -63,3 +63,34 @@ test('pinch, closed fingers, jitter, hand loss and width-only growth do not cast
   assert.equal(gesture.update([hand(.3, .5)], frame, 365), null);
   assert.equal(gesture.update([hand(.3, .5)], frame, 410), null);
 });
+
+test('a faster push is stronger than the same depth change performed slowly', () => {
+  function push(times) {
+    const gesture = createStrangeGesture();
+    let cast;
+    [.8, .855, .938, 1.045].forEach((scale, i) => {
+      cast = gesture.update([hand(.5, .5, scale)], frame, times[i]) ?? cast;
+    });
+    assert.equal(cast?.direction, 'forward');
+    return cast.power;
+  }
+  const light = push([0, 120, 240, 365]);
+  const strong = push([0, 32, 64, 96]);
+  assert.ok(light < .1);
+  assert.ok(strong > light + .65 && strong <= 1);
+});
+
+test('horizontal and vertical casts also scale with speed', () => {
+  for (const [direction, dx, dy] of [['right', -.18, 0], ['up', 0, -.235]]) {
+    function swipe(times) {
+      const gesture = createStrangeGesture();
+      let cast;
+      [0, .18, .51, 1].forEach((fraction, i) => {
+        cast = gesture.update([hand(.5 + dx * fraction, .5 + dy * fraction)], frame, times[i]) ?? cast;
+      });
+      assert.equal(cast?.direction, direction);
+      return cast.power;
+    }
+    assert.ok(swipe([0, 31, 64, 96]) > swipe([0, 82, 174, 274]) + .55);
+  }
+});
