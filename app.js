@@ -23,6 +23,7 @@ const fullscreenButton = byId('fullscreen');
 const recordButton = byId('record');
 const clipDownload = byId('clip-download');
 const clipFormat = byId('clip-format');
+const clipCountdownNumber = byId('clip-countdown-number');
 const status = byId('status');
 const universeButtons = [...document.querySelectorAll('[data-universe]')];
 const lensOutput = byId('lens-output');
@@ -64,6 +65,7 @@ let tryOnJob;
 let windowedFullscreen = false;
 let fullscreenChanging = false;
 let clip;
+let clipCountdown;
 let clipSaving = false;
 let clipTime = 0;
 let clipUrl;
@@ -284,6 +286,7 @@ function syncLensVisibility() {
 }
 
 function stopCamera(message, error = false) {
+  cancelClipCountdown();
   clip?.stop();
   cameraAttempt++;
   opening = false;
@@ -457,6 +460,7 @@ function syncFullscreen() {
 function syncClipFormat() {
   const portrait = studio.hasAttribute('data-fullscreen') && clipFormat.value === 'portrait';
   if (portrait === scene.portrait) return;
+  cancelClipCountdown();
   scene.portrait = portrait;
   studio.toggleAttribute('data-portrait', portrait);
   scene.pointer = null;
@@ -466,15 +470,49 @@ function syncClipFormat() {
 function syncClipControls() {
   recordButton.hidden = !studio.hasAttribute('data-fullscreen') && !clip;
   clipFormat.hidden = !studio.hasAttribute('data-fullscreen');
-  clipFormat.disabled = !recordingAvailable || Boolean(clip);
+  clipFormat.disabled = !recordingAvailable || Boolean(clip || clipCountdown);
   recordButton.disabled = !recordingAvailable || clipSaving;
   if (!recordingAvailable) recordButton.title = 'Trình duyệt này chưa hỗ trợ quay clip.';
   const recording = Boolean(clip && !clipSaving);
   recordButton.setAttribute('aria-pressed', String(recording));
-  const label = clipSaving ? 'Đang lưu clip…' : recording ? 'Dừng quay' : 'Quay clip';
+  let label = 'Quay clip';
+  if (clipCountdown) label = 'Hủy đếm ngược';
+  if (recording) label = 'Dừng quay';
+  if (clipSaving) label = 'Đang lưu clip…';
   const clock = [Math.floor(clipTime / 60), clipTime % 60].map(part => String(part).padStart(2, '0')).join(':'); /* taste-skill-ignore: elapsed recording clock. */
   recordButton.textContent = recording ? `${label} · ${clock}` : label;
   recordButton.setAttribute('aria-label', label);
+}
+
+function cancelClipCountdown() {
+  if (!clipCountdown) return;
+  clearTimeout(clipCountdown.timer);
+  clipCountdown = null;
+  clipCountdownNumber.textContent = '';
+  syncClipControls();
+}
+
+function startClipCountdown() {
+  const countdown = { deadline: performance.now() + 3000, timer: null };
+  clipCountdown = countdown;
+  syncClipControls();
+
+  function tick() {
+    const remaining = countdown.deadline - performance.now();
+    if (remaining <= 0) {
+      cancelClipCountdown();
+      if (!document.hidden && scene.portrait) beginRecording();
+      return;
+    }
+    const seconds = Math.ceil(remaining / 1000);
+    const digit = String(seconds);
+    if (clipCountdownNumber.textContent !== digit) clipCountdownNumber.textContent = digit;
+    countdown.timer = setTimeout(tick, Math.ceil(remaining - (seconds - 1) * 1000));
+  }
+
+  tick();
+  // Resume Web Audio while the record button still has user activation.
+  impact.prepareAudio(true);
 }
 
 function toggleRecording() {
@@ -482,7 +520,16 @@ function toggleRecording() {
     clip.stop();
     return;
   }
+  if (clipCountdown) {
+    cancelClipCountdown();
+    return;
+  }
   if (!recordingAvailable || !studio.hasAttribute('data-fullscreen')) return;
+  if (scene.portrait) startClipCountdown();
+  else beginRecording();
+}
+
+function beginRecording() {
   const character = scene.profile.id;
   const portrait = scene.portrait;
   function onError(error) {
@@ -649,7 +696,10 @@ window.addEventListener('pagehide', () => {
   stopCamera();
 });
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) clip?.stop();
+  if (document.hidden) {
+    cancelClipCountdown();
+    clip?.stop();
+  }
   if (!document.hidden) {
     if (scene.live && isStrange()) impact.prepareAudio();
     renderer.invalidate();

@@ -103,6 +103,26 @@ h3 { font-size: .875rem; font-weight: 620; }
   font-size: .875rem;
   color: #f4f3f2;
 }
+.clip-countdown {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  pointer-events: none;
+}
+.clip-countdown span {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid #ffffff40;
+  border-radius: 6px;
+  background: #171719;
+  color: #fff;
+  font-size: 1.75rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+.clip-countdown span:empty { display: none; }
 .stage-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 13px; }
 .button {
   display: inline-flex;
@@ -125,6 +145,7 @@ h3 { font-size: .875rem; font-weight: 620; }
 .button.clip-download { text-decoration: none; }
 .clip-format { color: inherit; font-family: inherit; cursor: pointer; }
 .clip-format:focus-visible { outline: 2px solid #ffd0a1; outline-offset: 4px; }
+.studio[data-portrait] .button.record { min-width: 10rem; }
 .button.record[aria-pressed="true"] { border-color: #d47879; }
 .button.record[aria-pressed="true"]::before {
   content: "";

@@ -218,3 +218,20 @@ Verification:
 Release gate: commit, push main, run `npm run deploy` and repeat both portrait downloads over HTTPS.
 
 Rework: 5 cycles for waiting for the resize, adding face padding, calibrating the gentle-shake assertion, waiting for fresh landmarks in the original clip smoke, and selecting the video stream by type. Token usage: unavailable.
+
+## Vertical clip countdown
+
+Status: Quay clip in fullscreen portrait mode shows 3, 2 and 1 in the preview, then starts recording. The record button can cancel the countdown.
+
+Contract: the preview keeps tracking and framing the camera during the countdown. A monotonic three-second deadline gates recorder creation. Stopping the camera, leaving fullscreen or hiding the tab cancels a pending recording. The counter stays outside the video compositor and the ratio stays locked while counting. Recording in Khung gốc starts immediately.
+
+Changed: `app.js`, `index.html`, `styles.css`, `HANDOFF.md`.
+
+Verification:
+- `npm test` (30), `npm run build`, `git diff --check` and `node /Users/hieuminh/.agents/skills/design-taste-frontend/scripts/lint.mjs --app` passed.
+- `node /tmp/universe-countdown-qa.cjs` verified the three digits, recorder start after three seconds, steady preview size, advancing camera stream, cancel and fullscreen exit, and 720 × 1280 MP4 and WebM with composited effects, shake and audible sound. Inspected desktop and 390 px countdown screenshots. Chrome replayed both recordings at 1×. Physical phones and webcams were not exercised.
+- `node /tmp/universe-clip-qa.cjs` passed for original-format recording and audio.
+
+Release gate: push main, run `npm run deploy`, then run `UNIVERSE_URL=https://ai-hero-hand-studio.nmhieu04091999.workers.dev node /tmp/universe-countdown-qa.cjs`.
+
+Rework: 0 cycles. Token usage: unavailable.
