@@ -3,3 +3,8 @@ dist/
 .wrangler/
 .DS_Store
 *.log
+vendor/snap-camera-kit.mjs
+.fashn/
+.dev.vars*
+.env*
+__pycache__/

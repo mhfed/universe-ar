@@ -1,19 +1,20 @@
 {
-  "name": "ai-air-canvas",
+  "name": "universe-ar",
   "version": "1.0.0",
-  "description": "AI Hand Gesture Air Drawing App using MediaPipe HandLandmarker",
+  "description": "Universe AR camera transformation and gesture studio",
   "type": "module",
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
     "build": "node build-dist.mjs",
     "deploy": "node build-dist.mjs && wrangler deploy",
-    "preview": "wrangler dev"
-  },
-  "dependencies": {
-    "@mediapipe/tasks-vision": "^1.2.3"
+    "preview": "wrangler dev",
+    "test": "node --test",
+    "build:snap": "node build-snap.mjs"
   },
   "devDependencies": {
+    "@snap/camera-kit": "1.22.0",
+    "esbuild": "0.28.2",
     "wrangler": "^4.168.0"
   }
 }

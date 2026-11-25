@@ -1,49 +1,28 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { publicFiles, publicDirectories } from './public-files.mjs';
+import snapConfig from './studio/snap-config.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const distDir = path.join(__dirname, 'dist');
+const source = name => new URL(name, import.meta.url);
+const destination = name => new URL('dist/' + name, import.meta.url);
 
-const STATIC_FILES = [
-  'index.html',
-  'styles.css',
-  'app.js',
-  'anime.js',
-  'cosplay.js',
-  'arcane.js',
-  'arcane_webgl.js',
-  'ironman.js',
-  'wolverine.js',
-  'thor.js',
-  'thanos.js',
-  'spider.js',
-];
-
-fs.rmSync(distDir, { recursive: true, force: true });
-fs.mkdirSync(distDir, { recursive: true });
-
-for (const file of STATIC_FILES) {
-  fs.copyFileSync(path.join(__dirname, file), path.join(distDir, file));
+await fs.rm(destination(''), { recursive: true, force: true });
+await fs.mkdir(destination(''), { recursive: true });
+await Promise.all([
+  ...publicFiles.map(name => fs.copyFile(source(name), destination(name))),
+  ...publicDirectories.map(name => fs.cp(source(name), destination(name), { recursive: true, filter: path => !path.endsWith('/snap-camera-kit.mjs') })),
+]);
+await fs.copyFile(source('assets/lens/gojo-reference.jpg'), destination('studio/gojo-reference.jpg'));
+if (snapConfig) {
+  const { buildSnap } = await import('./build-snap.mjs');
+  await buildSnap(fileURLToPath(destination('vendor/snap-camera-kit.mjs')));
 }
-
-fs.cpSync(path.join(__dirname, 'models'), path.join(distDir, 'models'), { recursive: true });
-fs.cpSync(path.join(__dirname, 'vendor'), path.join(distDir, 'vendor'), { recursive: true });
-
-const headers = `/vendor/mediapipe/wasm/*.wasm
+await fs.writeFile(destination('_headers'), `/vendor/mediapipe/wasm/*.wasm
   Content-Type: application/wasm
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, max-age=86400
 
 /models/*.task
   Content-Type: application/octet-stream
-  Cache-Control: public, max-age=31536000, immutable
-
-/*.js
-  Cache-Control: public, max-age=300
-
-/*.css
-  Cache-Control: public, max-age=300
-`;
-
-fs.writeFileSync(path.join(distDir, '_headers'), headers, 'utf8');
-console.log('Built static bundle in ./dist');
+  Cache-Control: public, max-age=86400
+`);
+console.log('Built static studio in ' + fileURLToPath(destination('')));

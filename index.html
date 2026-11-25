@@ -1,539 +1,74 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="vi">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#090d16" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>Marvel Avengers &amp; Air Studio — Nhận Diện Cử Chỉ 2 Tay AI</title>
-  <link rel="stylesheet" href="./styles.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#141416">
+  <meta name="description" content="Studio biến hình và hiệu ứng cử chỉ Avengers & Wibu ngay trên trình duyệt.">
+  <title>Universe AR · Studio biến hình</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./styles.css">
 </head>
-<body data-mode="arcane">
-  <main class="stage" id="stage">
-    <!-- Mirrored webcam stream -->
-    <video id="camera-video" class="camera-video" autoplay playsinline muted></video>
-    <div id="camera-dimmer" class="camera-dimmer" aria-hidden="true"></div>
-
-    <!-- Persistent artwork canvas (visible in Air Canvas mode) -->
-    <canvas id="drawing-canvas" class="canvas-layer" aria-label="Không gian tương tác siêu anh hùng Marvel 2 tay"></canvas>
-
-    <!-- Hardware-accelerated WebGL2 HDR Fire, Optical Bloom & 3000-Spark VFX Layer -->
-    <canvas id="webgl-canvas" class="canvas-layer overlay-layer" aria-hidden="true"></canvas>
-
-    <!-- Real-time Marvel Hero VFX & hand overlay -->
-    <canvas id="overlay-canvas" class="canvas-layer overlay-layer" aria-hidden="true"></canvas>
-
-    <!-- Top HUD -->
-    <header class="hud-top">
-      <div class="brand-card">
-        <span class="brand-dot" id="ai-dot" aria-hidden="true"></span>
-        <div>
-          <strong class="brand-title" id="brand-title-text">Avengers &amp; Wibu AI Studio</strong>
-          <span class="brand-sub" id="ai-status-text">Đang khởi tạo mô hình nhận diện 2 tay...</span>
-        </div>
-        <button type="button" class="universe-pill-btn" id="universe-switch-btn" title="Đổi giữa Vũ Trụ Avengers và Vũ Trụ Wibu">
-          ⚡ Đổi sang Wibu
-        </button>
+<body>
+  <header class="masthead">
+    <a class="wordmark" href="./"><span class="brand-mark" aria-hidden="true"></span> Universe<span class="wordmark-ar">AR</span></a>
+    <span class="masthead-label">Studio biến hình</span>
+    <button id="help" class="button quiet" type="button">Cách chơi</button>
+  </header>
+  <main class="workspace">
+    <div class="studio">
+      <div class="stage-heading">
+        <h1>Studio biến hình</h1>
+        <span id="source" class="source" data-live="false"><i></i> <span id="source-label">Xem thử</span></span>
       </div>
-
-      <div class="gesture-badge" id="gesture-badge" data-state="idle">
-        <span class="gesture-indicator" aria-hidden="true"></span>
-        <span id="gesture-state-label">Đưa 2 tay lại gần nhau để hợp nhất Đại Trận Pháp Chưởng Lực Full Màn Hình!</span>
+      <div id="stage" class="stage" aria-label="Khung xem trước hiệu ứng">
+        <video id="video" autoplay muted playsinline hidden></video>
+        <div id="lens-output" hidden></div>
+        <canvas id="effects" aria-hidden="true"></canvas>
+        <div class="viewfinder" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+        <p id="stage-label" class="stage-label">Ấn Pháp Hộ Thân</p>
       </div>
-
-      <div class="pinch-hud" aria-label="Trạng thái năng lượng 2 bàn tay">
-        <div class="pinch-hand-item" id="hud-hand-left" data-hand="left">
-          <div class="pinch-hud-row">
-            <span class="pinch-label">Tay trái (T)</span>
-            <span class="pinch-value" id="pinch-readout-left">--</span>
-          </div>
-          <div class="pinch-meter-track" aria-hidden="true">
-            <div class="pinch-meter-threshold" id="pinch-threshold-left"></div>
-            <div class="pinch-meter-fill pinch-fill-left" id="pinch-meter-left"></div>
-          </div>
-        </div>
-        <div class="pinch-hand-item" id="hud-hand-right" data-hand="right">
-          <div class="pinch-hud-row">
-            <span class="pinch-label">Tay phải (P)</span>
-            <span class="pinch-value" id="pinch-readout-right">--</span>
-          </div>
-          <div class="pinch-meter-track" aria-hidden="true">
-            <div class="pinch-meter-threshold" id="pinch-threshold-right"></div>
-            <div class="pinch-meter-fill" id="pinch-meter-right"></div>
-          </div>
-        </div>
-        <span class="fps-chip" id="fps-chip">0 FPS</span>
+      <div class="stage-controls">
+        <button id="camera" class="button primary" type="button" aria-pressed="false">Bật camera</button>
+        <button id="try-on" class="button try-on" type="button" aria-describedby="try-on-note" hidden>Chụp và thay áo AI</button>
+        <button id="cast" class="button" type="button">Tung chiêu <kbd>F</kbd></button>
+        <button id="capture" class="button capture" type="button">Chụp ảnh</button>
       </div>
-    </header>
-
-    <!-- Universe Selection & Camera Startup Overlay -->
-    <section class="permission-banner" id="camera-overlay">
-      <div class="permission-card universe-modal">
-        <div class="permission-icon" aria-hidden="true">✨</div>
-        <h2>Chọn Vũ Trụ Biến Hình 2 Tay AI</h2>
-        <p class="universe-subtitle">
-          Chọn luồng nhân vật bạn muốn hóa thân ngay trước Camera (có thể đổi qua lại bất cứ lúc nào):
-        </p>
-
-        <div class="universe-grid" role="group" aria-label="Chọn vũ trụ Avengers hoặc Wibu Anime">
-          <button type="button" class="universe-card universe-avengers" data-pick-universe="avengers">
-            <span class="universe-emoji" aria-hidden="true">🛡️</span>
-            <strong class="universe-name">Vũ Trụ Avengers</strong>
-            <span class="universe-desc">Dr. Strange • Iron Man • Wolverine • Thor • Thanos • Spider-Man</span>
-            <span class="universe-cta">Vào Avengers &amp; Bật Camera</span>
-          </button>
-
-          <button type="button" class="universe-card universe-anime" data-pick-universe="anime">
-            <span class="universe-emoji" aria-hidden="true">⚡</span>
-            <strong class="universe-name">Vũ Trụ Wibu (Anime)</strong>
-            <span class="universe-desc">AR Thay Đồ Cosplay (Akatsuki • Gojo • Tanjiro • Kaneki) + Chiêu Thức 2 Tay</span>
-            <span class="universe-cta">Vào Wibu &amp; Bật Camera</span>
-          </button>
-        </div>
-
-        <button type="button" class="ghost-skip-btn" id="start-camera-btn" hidden>Bật Camera</button>
-        <p class="permission-note" id="camera-error-msg" hidden></p>
-      </div>
-    </section>
-
-    <!-- Screen reader live status region (outside toolbar per modern web toolbar spec) -->
-    <p role="status" id="toolbar-status" class="sr-only"></p>
-
-    <!-- Two-Tier Bottom Control Dock -->
-    <section class="control-dock" aria-label="Chọn nhân vật Marvel và điều khiển kỹ năng">
-      <!-- Tier 1: 7-Hero / Mode Switcher Toolbar -->
-      <div
-        role="toolbar"
-        id="hero-toolbar"
-        class="hero-bar"
-        focusgroup="toolbar wrap"
-        aria-label="Chọn nhân vật Marvel và chế độ"
-        aria-controls="drawing-canvas"
-      >
-        <div role="group" aria-label="Danh sách siêu anh hùng" class="toolbar-group">
-          <button type="button" class="mode-btn" data-mode="arcane" aria-pressed="true">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 15 9 22 12 15 15 12 22 9 15 2 12 9 9 12 2"/><circle cx="12" cy="12" r="3"/></svg>
-            <span>Dr. Strange</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="ironman" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polygon points="12 7 17 15 7 15"/></svg>
-            <span>Iron Man</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="wolverine" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="20" x2="11" y2="4"/><line x1="10" y1="20" x2="15" y2="4"/><line x1="15" y1="20" x2="19" y2="4"/></svg>
-            <span>Wolverine</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="thor" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="9" rx="2"/><line x1="12" y1="12" x2="12" y2="21"/></svg>
-            <span>Thor</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="thanos" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="12 2 20 8 17 20 7 20 4 8"/><circle cx="12" cy="11" r="2.5"/></svg>
-            <span>Thanos</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="spider" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="3" y1="12" x2="21" y2="12"/></svg>
-            <span>Spider-Man</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="canvas" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-            <span>Vẽ 2 Tay</span>
-          </button>
-        </div>
-      </div>
-
-      <!-- Tier 1 (Wibu Flow): 5-Anime Character Switcher Toolbar -->
-      <div
-        role="toolbar"
-        id="anime-toolbar"
-        class="hero-bar"
-        focusgroup="toolbar wrap"
-        aria-label="Chọn nhân vật Anime Wibu"
-        aria-controls="overlay-canvas"
-        hidden
-      >
-        <div role="group" aria-label="Danh sách nhân vật Anime" class="toolbar-group">
-          <button type="button" class="mode-btn" data-mode="cosplay" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></svg>
-            <span>Thay Đồ AR</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="gojo" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></svg>
-            <span>Gojo</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="sukuna" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="4" y1="20" x2="20" y2="4"/><line x1="4" y1="12" x2="12" y2="4"/><line x1="12" y1="20" x2="20" y2="12"/></svg>
-            <span>Sukuna</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="jinwoo" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2L4 20h16L12 2z"/><circle cx="12" cy="14" r="2.2"/></svg>
-            <span>Solo Leveling</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="goku" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            <span>Goku</span>
-          </button>
-          <button type="button" class="mode-btn" data-mode="naruto" aria-pressed="false">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16 4 4 0 0 1 0-8 4 4 0 0 0 0-8z"/></svg>
-            <span>Naruto</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="subdock-row">
-        <!-- Tier 2: Contextual Hero Weapons & Utility Toolbar -->
-        <div
-          role="toolbar"
-          id="drawing-toolbar"
-          focusgroup="toolbar wrap"
-          aria-label="Vũ khí và công cụ nhân vật"
-          aria-controls="drawing-canvas"
-        >
-          <!-- Wibu Real-Time AR Cosplay Outfit Switcher -->
-          <div role="group" aria-label="Trang phục Cosplay AR" class="toolbar-group mode-only-cosplay" hidden>
-            <button type="button" class="element-btn" data-cosplay="akatsuki" style="--el-color:#ef4444" aria-pressed="true" title="Akatsuki + Sharingan + Băng trán Làng Lá (Phím 1)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Akatsuki</span>
-            </button>
-            <button type="button" class="element-btn" data-cosplay="gojo" style="--el-color:#38bdf8" aria-pressed="false" title="Gojo Satoru + Kính tròn / Băng bịt mắt + Six Eyes (Phím 2)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Gojo</span>
-            </button>
-            <button type="button" class="element-btn" data-cosplay="tanjiro" style="--el-color:#10b981" aria-pressed="false" title="Tanjiro + Áo Haori + Bông tai Hanafuda vật lý (Phím 3)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Tanjiro</span>
-            </button>
-            <button type="button" class="element-btn" data-cosplay="kaneki" style="--el-color:#f43f5e" aria-pressed="false" title="Kaneki + Mặt nạ da khóa kéo + Mắt Ngạ Quỷ (Phím 4)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Kaneki</span>
-            </button>
-            <button type="button" class="element-btn" data-cosplay="jinwoo" style="--el-color:#6366f1" aria-pressed="false" title="Sung Jinwoo + Áo Bóng Tối + Mắt phát sáng (Phím 5)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Jinwoo</span>
-            </button>
-            <button type="button" class="element-btn" id="cosplay-alt-btn" style="--el-color:#facc15" aria-pressed="false" title="Đổi biến thể trang phục / phụ kiện (Phím G)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name" id="cosplay-alt-label">Mangekyou (G)</span>
-            </button>
-          </div>
-
-          <!-- Goku Super Saiyan Form Switcher (Wibu Flow) -->
-          <div role="group" aria-label="Dạng biến hình Goku" class="toolbar-group mode-only-goku" hidden>
-            <button type="button" class="element-btn" data-goku-form="ssj" style="--el-color:#facc15" aria-pressed="true" title="Super Saiyan Vàng (Phím 1 hoặc 👌)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Super Saiyan</span>
-            </button>
-            <button type="button" class="element-btn" data-goku-form="ssb" style="--el-color:#38bdf8" aria-pressed="false" title="Super Saiyan Blue (Phím 2 hoặc 👌)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">SSJ Blue</span>
-            </button>
-            <button type="button" class="element-btn" data-goku-form="ui" style="--el-color:#e2e8f0" aria-pressed="false" title="Bản Năng Vô Cực (Phím 3 hoặc 👌)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Vô Cực</span>
-            </button>
-          </div>
-
-          <!-- Anime Domain Expansion / Aura & Ulti Triggers (Wibu Flow) -->
-          <div role="group" aria-label="Kỹ năng Anime" class="toolbar-group mode-only-anime" hidden>
-            <button type="button" class="element-btn" id="anime-domain-btn" style="--el-color:#a855f7" aria-pressed="false" title="Bành Trướng Lãnh Địa / Biến Hình Aura (Phím G)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name" id="anime-domain-label">Lãnh Địa (G)</span>
-            </button>
-            <button type="button" class="element-btn" id="anime-ult-btn" style="--el-color:#38bdf8" title="Tung Chiêu Cuối Toàn Màn Hình (Phím F)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name" id="anime-ult-label">Tử Thức (F)</span>
-            </button>
-          </div>
-
-          <!-- Iron Man Weapons -->
-          <div role="group" aria-label="Vũ khí Iron Man" class="toolbar-group mode-only-ironman" hidden>
-            <button type="button" class="element-btn" data-iron="repulsor" style="--el-color:#38bdf8" aria-pressed="true" aria-label="Pháo Lòng Bàn Tay Repulsor" title="Pháo Repulsor Tự Nạp &amp; Bắn (Phím 1)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Repulsor</span>
-            </button>
-            <button type="button" class="element-btn" data-iron="laser" style="--el-color:#ef4444" aria-pressed="false" aria-label="Tia Laser Đỏ Cắt Kim Loại" title="Tia Laser Đỏ Iron Man 2 (Phím 2)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Laser Đỏ</span>
-            </button>
-            <button type="button" class="element-btn" data-iron="unibeam" style="--el-color:#fde047" aria-pressed="false" aria-label="Siêu Pháo Ngực Unibeam" title="Siêu Pháo Unibeam 400% (Phím 3)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Unibeam</span>
-            </button>
-          </div>
-
-          <!-- Wolverine Claws -->
-          <div role="group" aria-label="Chế độ móng vuốt Wolverine" class="toolbar-group mode-only-wolverine" hidden>
-            <button type="button" class="element-btn" data-claw="adamantium" style="--el-color:#e2e8f0" aria-pressed="true" aria-label="Vuốt Thép Adamantium" title="Vuốt Kim Loại Adamantium (Phím 1)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Adamantium</span>
-            </button>
-            <button type="button" class="element-btn" data-claw="berserker" style="--el-color:#f97316" aria-pressed="false" aria-label="Vuốt Nung Đỏ Berserker" title="Vuốt Lửa Nung Đỏ Hot Claws (Phím 2)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Vuốt Nung Đỏ</span>
-            </button>
-          </div>
-
-          <!-- Thor Weapons -->
-          <div role="group" aria-label="Thần khí Thor" class="toolbar-group mode-only-thor" hidden>
-            <button type="button" class="element-btn" data-thor="mjolnir" style="--el-color:#60a5fa" aria-pressed="true" aria-label="Búa Thần Mjolnir" title="Búa Thần Mjolnir (Phím 1)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Búa Mjolnir</span>
-            </button>
-            <button type="button" class="element-btn" data-thor="stormbreaker" style="--el-color:#38bdf8" aria-pressed="false" aria-label="Rìu Chiến Stormbreaker" title="Rìu Chiến Stormbreaker (Phím 2)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Stormbreaker</span>
-            </button>
-          </div>
-
-          <!-- Thanos Snap Trigger -->
-          <div role="group" aria-label="Quyền năng Vô Cực Thanos" class="toolbar-group mode-only-thanos" hidden>
-            <button type="button" class="element-btn" id="thanos-snap-btn" style="--el-color:#facc15" aria-label="Kích hoạt Cú Búng Tay Vô Cực" title="Búng Tay Vô Cực Hóa Tro Bụi (Phím S)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Búng Tay Vô Cực (S)</span>
-            </button>
-          </div>
-
-          <!-- Spider-Man Web Gadgets -->
-          <div role="group" aria-label="Loại tơ nhện" class="toolbar-group mode-only-spider" id="spider-gadgets-group" hidden>
-            <button type="button" class="element-btn" data-web="classic" style="--el-color:#f8fafc" aria-pressed="true" aria-label="Tơ Nhện Cổ Điển" title="Tơ Nhện Đàn Hồi Cổ Điển (Phím 1)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Tơ Kéo</span>
-            </button>
-            <button type="button" class="element-btn" data-web="electric" style="--el-color:#38bdf8" aria-pressed="false" aria-label="Tơ Điện Venom" title="Tơ Điện Miles Morales (Phím 2)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Tơ Điện</span>
-            </button>
-            <button type="button" class="element-btn" data-web="bomb" style="--el-color:#ef4444" aria-pressed="false" aria-label="Bom Tơ Lưới Rộng" title="Bom Mạng Nhện Khổng Lồ (Phím 3)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Bom Tơ</span>
-            </button>
-          </div>
-
-          <!-- Arcane Elemental Stones -->
-          <div role="group" aria-label="Nguyên tố ma thuật" class="toolbar-group mode-only-arcane" id="arcane-elements-group">
-            <button type="button" class="element-btn" data-element="eldritch" style="--el-color:#ff9f1c" aria-pressed="true" aria-label="Lửa Cổ Ngữ Eldritch" title="Lửa Cổ Ngữ Doctor Strange (Phím 1 hoặc chạm Cái+Trỏ)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Lửa Cổ Ngữ</span>
-            </button>
-            <button type="button" class="element-btn" data-element="timestone" style="--el-color:#00f5d4" aria-pressed="false" aria-label="Đá Thời Gian" title="Đá Thời Gian Time Stone (Phím 2 hoặc chạm Cái+Trỏ)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Thời Gian</span>
-            </button>
-            <button type="button" class="element-btn" data-element="chaos" style="--el-color:#ff3366" aria-pressed="false" aria-label="Hỗn Mang Đa Vũ Trụ" title="Hỗn Mang Đỏ Tím (Phím 3 hoặc chạm Cái+Trỏ)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Hỗn Mang</span>
-            </button>
-            <button type="button" class="element-btn" data-element="cosmic" style="--el-color:#4cc9f0" aria-pressed="false" aria-label="Sấm Sét Vũ Trụ" title="Sấm Sét Vũ Trụ (Phím 4 hoặc chạm Cái+Trỏ)">
-              <span class="swatch-dot" aria-hidden="true"></span>
-              <span class="element-name">Sấm Sét</span>
-            </button>
-          </div>
-
-          <!-- Drawing Tool Modes (Air Canvas) -->
-          <div role="group" aria-label="Công cụ vẽ" class="toolbar-group mode-only-canvas" id="canvas-tools-group" hidden>
-            <button type="button" class="tool-btn" data-tool="pen" aria-pressed="true" aria-label="Bút vẽ tự do" title="Bút vẽ tự do (P)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
-            </button>
-            <button type="button" class="tool-btn" data-tool="line" aria-pressed="false" aria-label="Vẽ đường thẳng" title="Vẽ đường thẳng (L)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="19" x2="19" y2="5"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="5" r="2"/></svg>
-            </button>
-            <button type="button" class="tool-btn" data-tool="rect" aria-pressed="false" aria-label="Vẽ hình chữ nhật" title="Vẽ hình chữ nhật (R)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="14" rx="2"/></svg>
-            </button>
-            <button type="button" class="tool-btn" data-tool="circle" aria-pressed="false" aria-label="Vẽ hình tròn" title="Vẽ hình tròn (C)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>
-            </button>
-            <button type="button" class="tool-btn" data-tool="arrow" aria-pressed="false" aria-label="Vẽ mũi tên" title="Vẽ mũi tên (A)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="10 5 19 5 19 14"/></svg>
-            </button>
-            <button type="button" class="tool-btn" data-tool="eraser" aria-pressed="false" aria-label="Cục tẩy" title="Cục tẩy (E)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 20H7L3 16c-.8-.8-.8-2 0-2.8L13.6 2.6c.8-.8 2-.8 2.8 0l5 5c.8.8.8 2 0 2.8L12 19.8"/></svg>
-            </button>
-          </div>
-
-          <span role="separator" aria-orientation="vertical" class="mode-only-canvas" id="canvas-swatch-sep" hidden></span>
-
-          <!-- Preset Color Swatches (Air Canvas) -->
-          <div role="group" aria-label="Bảng màu nhanh" class="toolbar-group mode-only-canvas" id="canvas-swatches-group" hidden>
-            <button type="button" class="swatch-btn" data-color="#00f5d4" style="--swatch:#00f5d4" aria-pressed="true" aria-label="Xanh Ngọc Neon" title="Xanh Ngọc Neon">
-              <span class="swatch-dot" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="swatch-btn" data-color="#ff3366" style="--swatch:#ff3366" aria-pressed="false" aria-label="Đỏ Hồng" title="Đỏ Hồng">
-              <span class="swatch-dot" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="swatch-btn" data-color="#ffd166" style="--swatch:#ffd166" aria-pressed="false" aria-label="Vàng Hoàng Kim" title="Vàng Hoàng Kim">
-              <span class="swatch-dot" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="swatch-btn" data-color="#4cc9f0" style="--swatch:#4cc9f0" aria-pressed="false" aria-label="Xanh Dương Sáng" title="Xanh Dương Sáng">
-              <span class="swatch-dot" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="swatch-btn" data-color="#80ed99" style="--swatch:#80ed99" aria-pressed="false" aria-label="Xanh Lá Mạ" title="Xanh Lá Mạ">
-              <span class="swatch-dot" aria-hidden="true"></span>
-            </button>
-            <button type="button" class="swatch-btn" data-color="#ffffff" style="--swatch:#ffffff" aria-pressed="false" aria-label="Trắng Tinh" title="Trắng Tinh">
-              <span class="swatch-dot" aria-hidden="true"></span>
-            </button>
-          </div>
-
-          <span role="separator" aria-orientation="vertical"></span>
-
-          <!-- Visual & Motion Toggles -->
-          <div role="group" aria-label="Tùy chọn hiển thị và âm thanh" class="toolbar-group">
-            <button type="button" class="tool-btn mode-only-arcane" id="toggle-grand-seal" aria-pressed="false" aria-label="Khóa Đại Trận Pháp toàn màn hình" title="Khóa/Mở Đại Trận Pháp Full Màn Hình (Phím G)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="12 3 19.8 16.5 4.2 16.5"/><polygon points="12 21 4.2 7.5 19.8 7.5"/></svg>
-            </button>
-            <button type="button" class="tool-btn mode-only-spider" id="toggle-drones" aria-pressed="true" aria-label="Mục tiêu Drone tập bắn" title="Bật/Tắt Drone Mysterio tập bắn (D)" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
-            </button>
-            <button type="button" class="tool-btn mode-only-vfx" id="toggle-pause-fx" aria-pressed="false" aria-label="Tạm dừng chuyển động hiệu ứng" title="Tạm dừng chuyển động (Space)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
-            </button>
-            <button type="button" class="tool-btn mode-only-canvas" id="toggle-left-eraser" aria-pressed="false" aria-label="Tay trái làm cục tẩy nhanh" title="Tay trái làm cục tẩy nhanh (X)" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 11V5a1.5 1.5 0 0 1 3 0v4"/><path d="M10 9V4a1.5 1.5 0 0 1 3 0v5"/><path d="M13 9V5a1.5 1.5 0 0 1 3 0v6"/><path d="M16 11V7a1.5 1.5 0 0 1 3 0v7a6 6 0 0 1-6 6h-2a6 6 0 0 1-5-2.7L3.4 13.8a1.5 1.5 0 0 1 2.2-2L7 13"/><line x1="2.5" y1="3.5" x2="6.5" y2="7.5"/><line x1="6.5" y1="3.5" x2="2.5" y2="7.5"/></svg>
-            </button>
-            <button type="button" class="tool-btn mode-only-canvas" id="toggle-neon" aria-pressed="true" aria-label="Hiệu ứng phát sáng Neon" title="Hiệu ứng phát sáng Neon" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-            </button>
-            <button type="button" class="tool-btn" id="toggle-skeleton" aria-pressed="false" aria-label="Hiển thị khung xương bàn tay" title="Hiển thị khung xương bàn tay">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 11V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v0"/><path d="M14 10V4a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2v0a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
-            </button>
-            <button type="button" class="tool-btn" id="toggle-camera-bg" aria-pressed="true" aria-label="Hiển thị nền Camera" title="Bật/Tắt nền Camera">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
-            </button>
-            <button type="button" class="tool-btn" id="toggle-sound" aria-pressed="true" aria-label="Âm thanh hiệu ứng" title="Bật/Tắt âm thanh hiệu ứng">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-            </button>
-          </div>
-
-          <span role="separator" aria-orientation="vertical"></span>
-
-          <!-- One-shot Actions -->
-          <div role="group" aria-label="Chiêu cuối và thao tác" class="toolbar-group">
-            <button type="button" class="tool-btn mode-only-ironman" id="iron-unibeam-btn" aria-label="Phóng Siêu Pháo Unibeam" title="Bắn nổ Unibeam (F)" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>
-            </button>
-            <button type="button" class="tool-btn mode-only-thor" id="thor-thunder-btn" aria-label="Giáng Thiên Lôi Ragnarok" title="Giáng Thiên Lôi Từ Bầu Trời (F)" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            </button>
-            <button type="button" class="tool-btn danger-hover mode-only-spider" id="clear-webs-btn" aria-label="Cắt và dọn sạch tơ nhện" title="Cắt sạch tơ nhện trên màn hình (C)" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
-            </button>
-            <button type="button" class="tool-btn mode-only-arcane" id="nova-btn" aria-label="Tung Chưởng Lực Đại Trận Pháp" title="Tung Chưởng Lực Sóng Xung Kích (Phím F)">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.2 2.2M16.9 16.9l2.2 2.2M19.1 4.9l-2.2 2.2M7.1 16.9l-2.2 2.2"/></svg>
-            </button>
-            <button type="button" class="tool-btn mode-only-canvas" id="undo-btn" aria-disabled="true" aria-label="Hoàn tác nét trước" title="Hoàn tác (Cmd/Ctrl + Z)" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-            </button>
-            <button type="button" class="tool-btn mode-only-canvas" id="redo-btn" aria-disabled="true" aria-label="Làm lại nét vừa hoàn tác" title="Làm lại (Cmd/Ctrl + Y)" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>
-            </button>
-            <button type="button" class="tool-btn danger-hover mode-only-canvas" id="clear-btn" aria-label="Xóa toàn bộ bảng vẽ" title="Xóa toàn bộ bảng vẽ" hidden>
-              <svg viewBox="0 0 24 24" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-            </button>
-            <button type="button" class="tool-btn" id="save-btn" aria-label="Chụp và lưu ảnh PNG" title="Chụp ảnh màn hình PNG">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-            </button>
-            <button
-              type="button"
-              class="tool-btn"
-              id="help-btn"
-              command="show-modal"
-              commandfor="help-dialog"
-              aria-label="Hướng dẫn chiêu thức Avengers"
-              title="Bí kíp chiêu thức 6 siêu anh hùng"
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            </button>
-          </div>
-        </div>
-
-        <!-- Companion Slider Pod (shown in Air Canvas mode) -->
-        <div class="slider-pod mode-only-canvas" id="canvas-slider-pod" hidden>
-          <label class="color-picker-wrap" for="custom-color" title="Chọn màu tùy chỉnh">
-            <span class="sr-only">Chọn màu tùy chỉnh</span>
-            <input type="color" id="custom-color" value="#00f5d4" />
-          </label>
-          <div class="brush-slider-group">
-            <div class="brush-slider-header">
-              <label for="brush-size">Cỡ nét</label>
-              <span id="brush-size-value">6 px</span>
-            </div>
-            <input
-              type="range"
-              id="brush-size"
-              min="2"
-              max="32"
-              step="1"
-              value="6"
-              aria-valuetext="6 pixel"
-            />
-          </div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Native Modal Dialog for Avengers 6-Hero Guide -->
-  <dialog id="help-dialog" closedby="any" aria-labelledby="help-title">
-    <div class="dialog-inner">
-      <div class="dialog-header">
-        <h1 id="help-title">Bí Kíp Cử Chỉ 2 Tay — 6 Siêu Anh Hùng Marvel</h1>
-      </div>
-
-      <div class="guide-grid">
-        <div class="guide-step">
-          <span class="guide-num">🤖</span>
-          <div>
-            <strong>Iron Man — Lò Phản Ứng Repulsor, Laser Đỏ &amp; Unibeam</strong>
-            <p>Dựng lòng bàn tay hướng camera để tự nạp <strong>Arc Reactor</strong> và bắn nổ Ultron! Chuyển qua <strong>Laser Đỏ (Phím 2)</strong> để quét tia cắt ngang màn hình, hoặc chụm 2 lòng bàn tay gần nhau để hợp nhất <strong>Siêu Pháo Unibeam</strong>!</p>
-          </div>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">🐺</span>
-          <div>
-            <strong>Wolverine — Nắm Đấm Bật 6 Vuốt Adamantium ("SNIKT!")</strong>
-            <p><strong>Nắm chặt bàn tay</strong> để phóng 3 lưỡi vuốt kim loại từ đúng kẽ khớp xương (xòe rộng bàn tay để thu vuốt). Vung tay chém ngang để xé <strong>3 vệt lửa song song</strong>, đan chéo 2 tay bắn tia lửa chữ X!</p>
-          </div>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">⚡</span>
-          <div>
-            <strong>Thor — Gọi Búa Mjolnir, Ném Boomerang &amp; Thiên Lôi</strong>
-            <p>Giơ tay lên để gọi <strong>Mjolnir / Stormbreaker</strong> bay thẳng vào lòng bàn tay! Nâng cao tay lên vùng đỉnh màn hình để giáng <strong>Thiên Lôi Ragnarok</strong>, hoặc vung mạnh tay để ném búa xoay tròn rồi tự quay về!</p>
-          </div>
-        </div>
-        <div class="guide-step">
-          <span class="guide-num">💎</span>
-          <div>
-            <strong>Thanos • Spider-Man • Doctor Strange</strong>
-            <p><strong>Thanos</strong>: Nắm đấm gọi mưa thiên thạch Titan, chạm Cái + Giữa để <strong>Búng Tay Hóa Tro Bụi</strong> • <strong>Spider-Man</strong>: Gập ngón giữa + áp út (🤟) bắn tơ • <strong>Dr. Strange</strong>: Xòe tay mở Khiên Cổ Ngữ, 2 tay phóng Cầu Sấm Sét!</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="calibration-box">
-        <div class="brush-slider-header">
-          <label for="pinch-sensitivity">Ngưỡng chạm 2 ngón (Chế độ Vẽ 2 Tay)</label>
-          <span id="pinch-sensitivity-value">30%</span>
-        </div>
-        <input
-          type="range"
-          id="pinch-sensitivity"
-          min="18"
-          max="42"
-          step="1"
-          value="30"
-          aria-valuetext="30 phần trăm cỡ lòng bàn tay"
-        />
-      </div>
-
-      <form method="dialog" class="dialog-actions">
-        <button type="submit" value="ok" class="primary-btn" autofocus>Avengers Assemble!</button>
-      </form>
+      <button id="retry" class="button retry" type="button" hidden>Thử lại nhận diện</button>
+      <p id="status" class="status" role="status">Bật camera để hiệu ứng bám theo tay.</p>
+      <p id="try-on-note" class="try-on-note" hidden></p>
     </div>
+    <aside class="library" aria-labelledby="library-title">
+      <div class="library-heading">
+        <h2 id="library-title">Nhân vật</h2>
+        <span id="roster-count"></span>
+      </div>
+      <div class="universes" role="group" aria-label="Vũ trụ">
+        <button type="button" data-universe="avengers" aria-pressed="true">Avengers</button>
+        <button type="button" data-universe="wibu" aria-pressed="false">Wibu</button>
+      </div>
+      <div class="mode-control">
+        <h3>Chế độ</h3>
+        <div class="modes" role="group" aria-label="Chế độ biến hình">
+          <button type="button" data-mode="effects" aria-pressed="true">Chiêu thức</button>
+          <button type="button" data-mode="looks" aria-pressed="false">Trang phục</button>
+          <button type="button" data-mode="gojo" aria-pressed="false" hidden>Gojo Live</button>
+        </div>
+      </div>
+      <div id="roster" class="roster" role="group" aria-label="Chọn nhân vật"></div>
+    </aside>
+  </main>
+  <footer class="footer">Hiệu ứng và nhận diện cử chỉ chạy trên thiết bị của bạn.</footer>
+  <dialog id="help-dialog" aria-labelledby="help-title">
+    <form method="dialog">
+      <h2 id="help-title">Cách chơi</h2>
+      <p><strong>Chiêu thức.</strong> Đưa tay vào khung hình và chạm ngón cái với ngón trỏ để tung chiêu. Bạn cũng có thể bấm nút Tung chiêu hoặc phím F.</p>
+      <p><strong>Trang phục.</strong> Giữ mặt và hai vai trong khung hình để phụ kiện và áo bám theo người.</p>
+      <p><strong>Gojo Live.</strong> Giữ thân trên trong khung rồi bấm Chụp và thay áo AI. Sau khi FASHN thay áo, bấm F để tung Hư Thức Tử và Lưu PNG để tải ảnh.</p>
+      <p><strong>Xem thử.</strong> Chọn nhân vật và thử cả hai chế độ khi chưa bật camera.</p>
+      <button type="submit" class="button primary" autofocus>Đóng</button>
+    </form>
   </dialog>
-
   <script type="module" src="./app.js"></script>
 </body>
 </html>
