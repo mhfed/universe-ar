@@ -93,3 +93,21 @@ Verification:
 Release gate: commit and push main, then run `npm run deploy` and verify the public site and health endpoint over HTTPS. Set `FASHN_API_KEY` with Wrangler to enable online generation, then verify on the live API with a sample photo.
 
 Rework: 3 cycles for reading sampling progress from tqdm metadata, correcting the saved hand-coordinate shape, and verifying the Mac patch installation commands. Token usage: unavailable.
+
+## Doctor Strange WebGL restoration
+
+Status: restored the shader sources and visual behaviors from `3d34dc5`. Strange again renders rotating mandalas, welding sparks, fist vortices, two-hand Grand Seal and prism shockwaves in the current studio.
+
+Contract: the existing hand tracker feeds screen-space landmarks to Strange. F or the cast button launches a shockwave, hold or G controls Grand Seal, and keys 1–4 or a pinch select the original four elements. A dedicated WebGL2 canvas composites above the scene and is included in PNG exports. The simpler effect is the fallback for unavailable WebGL2 and reduced motion. The scope is the original visual effects and gestures.
+
+Changed: `app.js`, `index.html`, `studio/{renderer,arcane,arcane-webgl}.js`, `HANDOFF.md`.
+
+Verification:
+- `npm test` (17), `npm run build` and `git diff --check` passed. Compared all six GLSL source strings against `3d34dc5:arcane_webgl.js` for exact equality.
+- `node /tmp/universe-arcane-qa.cjs` passed on Chrome against localhost. Checked WebGL rendering, desktop and 390 px screenshots, mouse hold, element switching, PNG, real MediaPipe landmarks from a fake webcam, reduced motion and Gojo mode. The desktop recording had 120 WebGL frames in 1.99 seconds. Chrome played 59 video frames at 1×, and `ffprobe` reported 30 fps for the recording.
+- `node /tmp/universe-arcane-two-hands.cjs` passed with controlled hand landmarks. Verified two-hand fusion, pinch cycling and G toggle.
+- `GOJO_SMOKE=fixture node /tmp/universe-fashn-strange-regression.cjs` passed with a recorded FASHN response. Physical camera and device performance checks were not run.
+
+Release gate: commit, push main, run `npm run deploy`, then repeat the Strange browser smoke on the public URL.
+
+Rework: 0 cycles. Token usage: unavailable.

@@ -3,6 +3,7 @@ import { drawOutfit } from './outfits.js';
 import { drawGojoJacket } from './gojo-outfit.js';
 import { createGojoEffects } from './gojo-power.js';
 import { resolveGojoEnergy } from './gojo-geometry.js';
+import { createArcaneEngine } from './arcane.js';
 
 const TAU = Math.PI * 2;
 const circle = (ctx, x, y, r) => {
@@ -205,9 +206,40 @@ function drawPower(ctx, profile, x, y, r, time, strength = 1) {
   ctx.restore();
 }
 
-export function createRenderer(canvas, getScene) {
+export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeElement }) {
   const ctx = canvas.getContext('2d', { alpha: true });
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
+  let arcane;
+  let arcaneAnimating = false;
+  let arcaneHold = false;
+  let arcaneSizeDirty = true;
+  const noHand = { visible: false };
+
+  function hasStrangeEffects() {
+    const { profile, mode } = getScene();
+    if (profile.id !== 'strange' || mode !== 'effects' || reduce.matches) return false;
+    if (arcane === undefined) arcane = createArcaneEngine(strangeCanvas, onStrangeElement);
+    return Boolean(arcane);
+  }
+
+  strangeCanvas.addEventListener('webglcontextlost', event => {
+    event.preventDefault();
+    arcane = null;
+    arcaneAnimating = false;
+    arcaneHold = false;
+    invalidate();
+  });
+  strangeCanvas.addEventListener('webglcontextrestored', () => {
+    arcane = undefined;
+    arcaneSizeDirty = true;
+    invalidate();
+  });
+  reduce.addEventListener('change', () => {
+    arcane?.reset();
+    arcaneAnimating = false;
+    arcaneHold = false;
+    invalidate();
+  });
   const portrait = new Image();
   portrait.onload = () => invalidate();
   portrait.src = new URL('./demo.jpg', import.meta.url).href;
@@ -261,6 +293,7 @@ export function createRenderer(canvas, getScene) {
     canvas.width = Math.round(w * dpr);
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(canvas.width / w, 0, 0, canvas.height / h, 0, 0);
+    arcaneSizeDirty = true;
     invalidate();
   }
 
@@ -280,10 +313,19 @@ export function createRenderer(canvas, getScene) {
     const powers = mode !== 'looks' && (!still || still.ready);
     const cinematic = powers && profile.id === 'gojo';
     const shown = result && now - result.received < 420 ? result : null;
-    const animated = Boolean(burst || (powers && !reduce.matches && (demo || still || shown?.hands?.length)));
+    if (hasStrangeEffects() && arcaneSizeDirty) {
+      if (!arcane.resize(w, h, canvas.width / w)) arcane = null;
+      arcaneSizeDirty = false;
+    }
+    const useArcane = hasStrangeEffects();
+    strangeCanvas.toggleAttribute('hidden', !useArcane);
+    if (useArcane) burst = null;
+    const animated = Boolean(burst || (powers && !reduce.matches && (demo || still || shown?.hands?.length))
+      || (useArcane && arcaneAnimating));
     if (dirty || animated || powers && (!demo && smoothHands.size)) {
+      const redrawBase = dirty || !useArcane;
       dirty = false;
-      ctx.clearRect(0, 0, w, h);
+      if (redrawBase) ctx.clearRect(0, 0, w, h);
       const t = reduce.matches ? 0 : time;
       const r = Math.min(w, h) * .22;
       let demoX = w * .66;
@@ -295,7 +337,7 @@ export function createRenderer(canvas, getScene) {
         const ph = preview.naturalHeight * scale;
         const left = (w - pw) / 2;
         const top = (h - ph) / 2;
-        ctx.drawImage(preview, left, top, pw, ph);
+        if (redrawBase) ctx.drawImage(preview, left, top, pw, ph);
         const map = ([x,y]) => ({ x: left + x*pw, y: top + y*ph });
         ({ x: demoX, y: demoY } = map(demoHand));
         if (!combined && mode !== 'effects') outfit(profile,demoFace.map(map),demoPose.map(map),demoBody.map(map));
@@ -317,7 +359,19 @@ export function createRenderer(canvas, getScene) {
       const effectScene = { width:w, height:h, video:live ? video : null, lens, reduced:reduce.matches };
       const castingAge = burst ? (now-burst.at)/1000 : 1;
       const ambient = cinematic && burst ? .18 + .82*clamp((castingAge-.38)*1.8,0,1) : 1;
-      if (powers) {
+      if (useArcane) {
+        const hands = frame && shown?.hands?.length
+          ? [...shown.hands].sort((a, b) => a.id.localeCompare(b.id)) : [];
+        const slot = hand => hand ? { visible: true, landmarks: hand.points } : noHand;
+        if (demo || hands.length || arcaneAnimating) {
+          arcaneAnimating = arcane.updateAndRender(slot(hands[0]), slot(hands[1]), {
+            enabled: demo,
+            x: pointer?.x ?? demoX,
+            y: pointer?.y ?? demoY,
+            pressed: arcaneHold,
+          }, mapSample);
+        }
+      } else if (powers) {
         if (demo || still?.ready) {
           const point={ x:pointer?.x ?? demoX, y:pointer?.y ?? demoY, tone:'purple' };
           if (cinematic) gojoEffects.power(point,r*.54,t,effectScene,{ energy:ambient });
@@ -421,6 +475,20 @@ export function createRenderer(canvas, getScene) {
   return {
     resize,
     invalidate,
+    hasStrangeEffects,
+    holdStrange(held) {
+      arcaneHold = held;
+      invalidate();
+    },
+    setStrangeElement(index) {
+      arcane?.setElement(index);
+      invalidate();
+    },
+    toggleStrangeSeal() {
+      arcane?.toggleGrandSeal();
+      arcaneAnimating = true;
+      invalidate();
+    },
     markResult() {
       clearTimeout(expires);
       expires = setTimeout(invalidate, 435);
@@ -432,9 +500,18 @@ export function createRenderer(canvas, getScene) {
       smoothHands.clear();
       gojoPalms=[];
       fusion = 0;
+      arcane?.reset();
+      arcaneHold = false;
+      arcaneAnimating = false;
       invalidate();
     },
     burst(point) {
+      if (hasStrangeEffects()) {
+        arcane.cast();
+        arcaneAnimating = true;
+        invalidate();
+        return;
+      }
       const origin=getScene().profile.id==='gojo' ? gojoPalms.find(p=>p.tone==='purple') ?? point : point;
       burst = { point:origin, at:performance.now() };
       invalidate();
@@ -459,6 +536,7 @@ export function createRenderer(canvas, getScene) {
         out.restore();
       }
       out.drawImage(canvas, 0, 0);
+      if (!strangeCanvas.hidden) out.drawImage(strangeCanvas, 0, 0, shot.width, shot.height);
       return new Promise((resolve, reject) => shot.toBlob(blob =>
         blob ? resolve(blob) : reject(new Error('Không tạo được ảnh PNG.')), 'image/png'));
     },

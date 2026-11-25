@@ -22,7 +22,10 @@ const modeButtons = [...document.querySelectorAll('[data-mode]')];
 
 const selected = { avengers: universes.avengers[0], wibu: universes.wibu[0] };
 const scene = { mode: 'effects', profile: selected.avengers, video, live: false, result: null, pointer: null, lens: null, still: null };
-const renderer = createRenderer(byId('effects'), () => scene);
+const renderer = createRenderer(byId('effects'), () => scene, {
+  strangeCanvas: byId('strange-effects'),
+  onStrangeElement: name => say('Doctor Strange · ' + name),
+});
 const gesture = createGesture();
 const camera = createCamera(video, () => {
   if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera cần HTTPS hoặc localhost.');
@@ -54,6 +57,9 @@ function say(message, error = false) {
 }
 
 function guidance() {
+  if (renderer.hasStrangeEffects()) return scene.live
+    ? 'Xòe tay mở khiên, nắm tay tạo xoáy. Đưa hai tay lại gần để hợp trận.'
+    : 'Di chuột để mở khiên, chạm giữ để mở đại trận. Bấm F để tung sóng xung kích.';
   if (scene.mode === 'gojo') {
     if (!scene.live) return 'Ảnh mẫu thay áo bằng FASHN. Bật camera để chụp ảnh của bạn.';
     return 'Giữ mặt, vai và thân trên trong khung. Đưa tay lại gần để hợp nhất năng lượng.';
@@ -110,6 +116,7 @@ function stopTracking() {
 function consume(result, now) {
   scene.result = { ...result, received: now };
   renderer.markResult();
+  if (renderer.hasStrangeEffects()) return;
   if (!canCast() || !result.hands?.length) {
     if (canCast()) gesture.update([], now);
     return;
@@ -372,6 +379,7 @@ function selectProfile(profile) {
   gesture.reset();
   updateLabels();
   renderer.reset();
+  if (trackStatus === 'idle' || trackStatus === 'ready') say(guidance());
 }
 
 function renderRoster() {
@@ -407,10 +415,18 @@ function cast() {
 }
 castButton.addEventListener('click', cast);
 document.addEventListener('keydown', event => {
-  if (!event.repeat && event.code === 'KeyF' && !event.ctrlKey && !event.metaKey && !event.altKey && !byId('help-dialog').open) cast();
+  if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || byId('help-dialog').open) return;
+  if (event.code === 'KeyF') {
+    cast();
+    return;
+  }
+  if (!renderer.hasStrangeEffects()) return;
+  if (event.code === 'KeyG') renderer.toggleStrangeSeal();
+  const element = /^Digit([1-4])$/.exec(event.code);
+  if (element) renderer.setStrangeElement(Number(element[1]) - 1);
 });
 stage.addEventListener('pointermove', event => {
-  if (scene.live || !canCast() || event.pointerType === 'touch') return;
+  if (scene.live || !canCast() || (event.pointerType === 'touch' && !stage.hasPointerCapture(event.pointerId))) return;
   scene.pointer = { x: event.offsetX, y: event.offsetY };
   renderer.invalidate();
 });
@@ -420,7 +436,17 @@ stage.addEventListener('pointerleave', () => {
 });
 stage.addEventListener('pointerdown', event => {
   if (scene.live || !canCast() || event.button !== 0) return;
+  if (renderer.hasStrangeEffects()) {
+    scene.pointer = { x: event.offsetX, y: event.offsetY };
+    stage.setPointerCapture(event.pointerId);
+    renderer.holdStrange(true);
+    return;
+  }
   renderer.burst({ x: event.offsetX, y: event.offsetY });
+});
+stage.addEventListener('lostpointercapture', event => {
+  if (event.pointerType === 'touch') scene.pointer = null;
+  renderer.holdStrange(false);
 });
 
 video.addEventListener('resize', renderer.invalidate);
