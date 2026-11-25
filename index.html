@@ -16,17 +16,19 @@
     <button id="help" class="button quiet" type="button">Cách chơi</button>
   </header>
   <main class="workspace">
-    <div class="studio">
+    <div id="studio" class="studio">
       <div class="stage-heading">
         <h1>Studio biến hình</h1>
         <span id="source" class="source" data-live="false"><i></i> <span id="source-label">Xem thử</span></span>
       </div>
       <div id="stage" class="stage" aria-label="Khung xem trước hiệu ứng">
-        <video id="video" autoplay muted playsinline hidden></video>
-        <div id="lens-output" hidden></div>
-        <canvas id="effects" aria-hidden="true"></canvas>
-        <canvas id="strange-light" aria-hidden="true" hidden></canvas>
-        <canvas id="strange-effects" aria-hidden="true" hidden></canvas>
+        <div id="stage-picture" class="stage-picture">
+          <video id="video" autoplay muted playsinline hidden></video>
+          <div id="lens-output" hidden></div>
+          <canvas id="effects" aria-hidden="true"></canvas>
+          <canvas id="strange-light" aria-hidden="true" hidden></canvas>
+          <canvas id="strange-effects" aria-hidden="true" hidden></canvas>
+        </div>
         <div class="viewfinder" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
         <p id="stage-label" class="stage-label">Ấn Pháp Hộ Thân</p>
       </div>
@@ -35,6 +37,8 @@
         <button id="try-on" class="button try-on" type="button" aria-describedby="try-on-note" hidden>Chụp và thay áo AI</button>
         <button id="cast" class="button" type="button">Tung chiêu <kbd>F</kbd></button>
         <button id="capture" class="button capture" type="button">Chụp ảnh</button>
+        <button id="impact-sound" class="button" type="button" aria-label="Âm thanh Doctor Strange" aria-pressed="true" hidden>Âm thanh bật</button>
+        <button id="fullscreen" class="button" type="button" aria-pressed="false">Toàn màn hình</button>
       </div>
       <button id="retry" class="button retry" type="button" hidden>Thử lại nhận diện</button>
       <p id="status" class="status" role="status">Bật camera để hiệu ứng bám theo tay.</p>

@@ -208,7 +208,7 @@ function drawPower(ctx, profile, x, y, r, time, strength = 1) {
   ctx.restore();
 }
 
-export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, onStrangeElement }) {
+export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, onStrangeElement, onStrangeImpact, onReset }) {
   const ctx = canvas.getContext('2d', { alpha: true });
   const lightCtx = strangeLight.getContext('2d', { alpha: true });
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
@@ -377,7 +377,9 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
       let demoFaceLight;
       const preview = combined && gojoPreview.naturalWidth ? gojoPreview : portrait;
       if (demo && preview.naturalWidth) {
-        const scale = Math.max(w / preview.naturalWidth, h / preview.naturalHeight);
+        const scale = h > w * 1.25
+          ? Math.min(w / preview.naturalWidth, h / preview.naturalHeight)
+          : Math.max(w / preview.naturalWidth, h / preview.naturalHeight);
         const pw = preview.naturalWidth * scale;
         const ph = preview.naturalHeight * scale;
         const left = (w - pw) / 2;
@@ -539,6 +541,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
       strangeFlash = { ...origin, scale: point?.scale ?? Math.min(w,h) * .13, power, color: [1,.42,.06], at };
       burst = { point: origin, direction, power, at };
     }
+    onStrangeImpact(strangeFlash.power, direction);
     invalidate();
   }
 
@@ -587,6 +590,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
       strangeGesture.reset();
       arcaneHold = false;
       arcaneAnimating = false;
+      onReset();
       invalidate();
     },
     burst(point) {

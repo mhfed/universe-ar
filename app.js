@@ -1,12 +1,14 @@
 import { universes } from './studio/catalog.js';
 import { createCamera, createGesture, fitFrame, mapPoint, nextInferenceAt, pinchRatio } from './studio/runtime.js';
 import { createRenderer } from './studio/renderer.js';
+import { createStrangeImpact } from './studio/strange-impact.js';
 import { openTracking } from './studio/tracking.js';
 import { availableTryOn, captureFrame, tryOn } from './studio/try-on.js';
 import snapConfig from './studio/snap-config.js';
 
 const byId = id => document.getElementById(id);
 const stage = byId('stage');
+const studio = byId('studio');
 const video = byId('video');
 const roster = byId('roster');
 const cameraButton = byId('camera');
@@ -15,6 +17,8 @@ const tryOnButton = byId('try-on');
 const tryOnNote = byId('try-on-note');
 const retryButton = byId('retry');
 const castButton = byId('cast');
+const soundButton = byId('impact-sound');
+const fullscreenButton = byId('fullscreen');
 const status = byId('status');
 const universeButtons = [...document.querySelectorAll('[data-universe]')];
 const lensOutput = byId('lens-output');
@@ -22,10 +26,13 @@ const modeButtons = [...document.querySelectorAll('[data-mode]')];
 
 const selected = { avengers: universes.avengers[0], wibu: universes.wibu[0] };
 const scene = { mode: 'effects', profile: selected.avengers, video, live: false, result: null, pointer: null, lens: null, still: null };
+const impact = createStrangeImpact(byId('stage-picture'));
 const renderer = createRenderer(byId('effects'), () => scene, {
   strangeCanvas: byId('strange-effects'),
   strangeLight: byId('strange-light'),
   onStrangeElement: name => say('Doctor Strange · ' + name),
+  onStrangeImpact: impact.hit,
+  onReset: impact.reset,
 });
 const gesture = createGesture();
 const camera = createCamera(video, () => {
@@ -50,7 +57,10 @@ let trackStatus = 'idle';
 let lensRequest;
 let tryOnProvider;
 let tryOnJob;
+let windowedFullscreen = false;
+let fullscreenChanging = false;
 const canCast = () => scene.mode !== 'looks' && (!scene.still || scene.still.ready);
+const isStrange = () => scene.profile.id === 'strange' && scene.mode === 'effects';
 
 function say(message, error = false) {
   if (status.textContent !== message) status.textContent = message;
@@ -58,7 +68,7 @@ function say(message, error = false) {
 }
 
 function guidance() {
-  if (scene.profile.id === 'strange' && scene.mode === 'effects') return scene.live
+  if (isStrange()) return scene.live
     ? 'Xòe một tay. Đẩy về camera hoặc vung lên, xuống, trái, phải để tung chưởng.'
     : 'Bấm F để chưởng thẳng, Shift + phím mũi tên để chưởng theo hướng. Giữ trên khung để mở đại trận.';
   if (scene.mode === 'gojo') {
@@ -87,6 +97,9 @@ function updateLabels() {
   cameraButton.textContent = opening ? 'Hủy mở camera' : scene.live ? 'Tắt camera' : scene.still ? 'Chụp lại' : 'Bật camera';
   cameraButton.setAttribute('aria-pressed', String(scene.live));
   castButton.hidden = !canCast();
+  soundButton.hidden = !isStrange() || !impact.available;
+  soundButton.setAttribute('aria-pressed', String(!impact.muted));
+  soundButton.textContent = impact.muted ? 'Âm thanh tắt' : 'Âm thanh bật';
   const gojo = scene.mode === 'gojo';
   tryOnButton.hidden = !gojo || !scene.live;
   tryOnButton.disabled = !tryOnProvider;
@@ -187,7 +200,7 @@ async function startTracking(preferWorker = true) {
       lastMedia = media;
       const start = performance.now();
       try {
-        const trackFace = scene.mode === 'effects' && scene.profile.id === 'strange';
+        const trackFace = isStrange();
         const result = await engine.detect(video, now, trackFace);
         if (!signal.aborted && !document.hidden) consume(result, performance.now(), now);
         failures = 0;
@@ -279,6 +292,7 @@ async function toggleCamera() {
     stopCamera();
     return;
   }
+  if (isStrange()) impact.prepareAudio();
   resetTryOn();
   const attempt = ++cameraAttempt;
   opening = true;
@@ -318,6 +332,7 @@ function changeMode(mode) {
   updateLabels();
   renderer.reset();
   if (scene.live) {
+    if (isStrange()) impact.prepareAudio();
     void startTracking();
     syncLensVisibility();
   } else say(guidance());
@@ -381,6 +396,7 @@ function selectProfile(profile) {
   gesture.reset();
   updateLabels();
   renderer.reset();
+  if (scene.live && isStrange()) impact.prepareAudio();
   if (trackStatus === 'idle' || trackStatus === 'ready') say(guidance());
 }
 
@@ -413,19 +429,58 @@ for (const button of universeButtons) button.addEventListener('click', () => {
 for (const button of modeButtons) button.addEventListener('click', () => changeMode(button.dataset.mode));
 
 function cast() {
-  if (canCast()) renderer.burst(scene.pointer);
+  if (!canCast()) return;
+  if (isStrange()) impact.prepareAudio();
+  renderer.burst(scene.pointer);
 }
+
+function syncFullscreen() {
+  const active = windowedFullscreen || document.fullscreenElement === studio;
+  studio.toggleAttribute('data-fullscreen', active);
+  document.body.toggleAttribute('data-studio-fullscreen', windowedFullscreen);
+  fullscreenButton.setAttribute('aria-pressed', String(active));
+  fullscreenButton.textContent = active ? 'Thoát toàn màn hình' : 'Toàn màn hình';
+}
+
+async function toggleFullscreen() {
+  if (fullscreenChanging) return;
+  fullscreenChanging = true;
+  try {
+    if (windowedFullscreen) windowedFullscreen = false;
+    else if (document.fullscreenElement === studio) await document.exitFullscreen();
+    else if (studio.requestFullscreen && document.fullscreenEnabled !== false) await studio.requestFullscreen();
+    else windowedFullscreen = true;
+  } catch {
+    if (document.fullscreenElement !== studio) windowedFullscreen = true;
+  } finally {
+    fullscreenChanging = false;
+    syncFullscreen();
+  }
+}
+
 castButton.addEventListener('click', cast);
+soundButton.addEventListener('click', () => {
+  impact.setMuted(!impact.muted);
+  updateLabels();
+});
+fullscreenButton.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', syncFullscreen);
 document.addEventListener('keydown', event => {
   if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || byId('help-dialog').open) return;
+  if (event.code === 'Escape' && windowedFullscreen) {
+    event.preventDefault();
+    void toggleFullscreen();
+    return;
+  }
   if (event.code === 'KeyF') {
     cast();
     return;
   }
-  if (event.shiftKey && scene.profile.id === 'strange' && scene.mode === 'effects') {
+  if (event.shiftKey && isStrange()) {
     const direction = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[event.code];
     if (direction) {
       event.preventDefault();
+      impact.prepareAudio();
       renderer.strangeCast(direction, scene.pointer);
       return;
     }
@@ -493,6 +548,7 @@ window.addEventListener('pagehide', () => {
 });
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
+    if (scene.live && isStrange()) impact.prepareAudio();
     renderer.invalidate();
     if(scene.live && scene.mode === 'gojo' && !scene.lens && snapConfig) void startTracking();
   }

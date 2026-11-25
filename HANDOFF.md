@@ -165,3 +165,21 @@ Verification:
 Release gate: commit, push main, run `npm run deploy`, then repeat the gentle and strong camera smoke over HTTPS.
 
 Rework: 1 cycle to separate wave travel from fade duration and make the size difference visible at equal elapsed time. Token usage: unavailable.
+
+## Doctor Strange impact audio and fullscreen
+
+Status: Strange casts now play a short synthesized fire burst with a descending bass tone and a directional shake on the picture layer. Gain, pitch, duration and shake amplitude follow the same power value used by the spell visuals. Fullscreen expands the studio while keeping camera, cast and export controls accessible.
+
+Contract: Web Audio starts on user interaction. The sound toggle persists locally. The shake moves only the composited preview, lasts under 300 ms and respects reduced motion. The fullscreen button uses the native API with a viewport overlay fallback. The current camera stream is reused through either transition.
+
+Changed: `app.js`, `index.html`, `styles.css`, `studio/{renderer,strange-impact}.js`, `test/strange-impact.test.js`, `HANDOFF.md`.
+
+Verification:
+- `npm test` (27), `npm run build`, `git diff --check` and `node /Users/hieuminh/.agents/skills/design-taste-frontend/scripts/lint.mjs --app` passed.
+- `RECORD_CLIP=1 node /tmp/universe-strange-impact-qa.cjs` passed on Chrome. Verified camera gestures with controlled landmarks, light versus strong audio output and pitch, shake scaling and reduced motion, persisted mute, native fullscreen, unchanged camera track, PNG and the viewport fallback. The clip played 37 frames at 1×. `ffprobe -v error -show_entries stream=codec_name,codec_type,r_frame_rate -of compact /tmp/universe-strange-impact/impact.webm` confirmed VP8 and Opus. Desktop and mobile screenshots were inspected.
+- `node /Users/hieuminh/.agents/skills/design-taste-frontend/scripts/inspect.mjs http://localhost:3456 --out /tmp/universe-impact-inspection --widths 1440,768,390 --app` passed. Inspected the tablet and fullscreen renders.
+- `CHECK_OFFSCREEN=1 node /tmp/universe-arcane-qa.cjs`, `node /tmp/universe-arcane-two-hands.cjs` and `GOJO_SMOKE=fixture node /tmp/universe-fashn-strange-regression.cjs` passed. Physical phones and speaker output were not tested.
+
+Release gate: commit, push main, run `npm run deploy` and repeat the impact and fullscreen smoke over HTTPS.
+
+Rework: 2 verification cycles for waiting for the repaint after fullscreen exit and decoding a video data URI with a multi-codec MIME type. Token usage: unavailable.
