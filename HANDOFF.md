@@ -111,3 +111,20 @@ Verification:
 Release gate: commit, push main, run `npm run deploy`, then repeat the Strange browser smoke on the public URL.
 
 Rework: 0 cycles. Token usage: unavailable.
+
+## Doctor Strange render performance
+
+Status: optimized the existing effects pipeline. The HDR scene shader runs inside the visible hand and wave bounds, with full-stage rendering for Grand Seal god rays. Wave geometry is calculated once per frame. Grand Seal skips filament calculations outside the mandala. Offscreen sparks keep their physics and skip instance uploads. The Strange stage pauses outside the viewport and draws a fresh frame for PNG export.
+
+Changed: `studio/arcane-webgl.js`, `studio/arcane.js`, `studio/renderer.js`, `HANDOFF.md`.
+
+Verification:
+- `npm test` (17), `npm run build` and `git diff --check` passed.
+- `node /tmp/universe-arcane-perf.cjs` and `SOFTWARE_GL=1 node /tmp/universe-arcane-perf.cjs` compared deterministic inputs with commit `7270714`. Median SwiftShader milliseconds per frame were 62.03 to 26.74 for the desktop shield, 8.49 to 4.59 for the phone-sized shield, 69.39 to 47.58 for Grand Seal, and 67.68 to 42.26 for waves. On Apple M1 Pro, desktop shield was 0.344 to 0.294 ms and the smaller shield was 0.200 to 0.211 ms in this synthetic test. The shield and Grand Seal fixtures matched pixel for pixel, and waves differed by at most one channel level.
+- `RGBM=1 node /tmp/universe-arcane-perf.cjs` passed the forced RGBA8 test. The moved shield and sparks outside the clipping region matched pixel for pixel. Wave channels differed by at most two levels with a mean absolute difference below 0.001.
+- `CHECK_OFFSCREEN=1 node /tmp/universe-arcane-qa.cjs` passed on Chrome. Checked camera fixture, PNG, offscreen pause with one-frame export, viewport resume, reduced motion and the Gojo switch. Inspected desktop and mobile screenshots. Chrome played 60 frames at 1× in the two-second recording.
+- `node /tmp/universe-arcane-two-hands.cjs` and `GOJO_SMOKE=fixture node /tmp/universe-fashn-strange-regression.cjs` passed. Physical phone timing and live FASHN inference were not measured in this phase.
+
+Release gate: push main, deploy with `npm run deploy` and repeat the offscreen browser smoke over HTTPS.
+
+Rework: 1 cycle to force a GPU readback in the benchmark after the first timing method returned zero. Token usage: unavailable.

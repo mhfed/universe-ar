@@ -46,9 +46,10 @@ uniform vec4 u_handOri[3];
 uniform vec4 u_grand;
 uniform float u_grandSpin;
 
-// Up to 6 simultaneous 3D Optical Dispersion Shockwave Volleys:
-// (originX, originY, zDepth, intensity)
+// Projected shockwaves: (centerX, centerY, radius, bandWidth).
 uniform vec4 u_waves[6];
+uniform vec3 u_waveDetails[6]; // (noise scale, amplitude, original slot)
+uniform int u_waveCount;
 
 const float PI = 3.14159265359;
 const float TAU = 6.28318530718;
@@ -274,18 +275,16 @@ float evalGrandMandala(vec2 fragPx, out float grandHue) {
   float spin = u_grandSpin;
   grandHue = fract(a / TAU - u_time * 0.06 + r / (R * 2.2));
 
-  // Rich organic flame & plasma turbulence across full screen
-  vec2 fCoord = p * 0.014 - vec2(cos(a), sin(a)) * (u_time * 1.35);
-  float fTurb = fbm(fCoord);
-  float fDetail = fbm(p * 0.038 + vec2(u_time * 1.8, -u_time * 1.4));
-  vec2 pw = p + (vec2(fTurb, fDetail) - 0.5) * 11.5;
-  float rw = length(pw);
-
-  float crackle = noise(vec2(a * 48.0 - spin * 5.0, rw * 0.09 - u_time * 11.0));
-  float sputter = pow(clamp(0.22 + 1.15 * crackle * fDetail * 1.55, 0.0, 1.55), 2.2);
-
-  float d = 1e4;
+  float energy = 0.0;
   if (r < R * 1.28) {
+    vec2 fCoord = p * 0.014 - vec2(cos(a), sin(a)) * (u_time * 1.35);
+    float fTurb = fbm(fCoord);
+    float fDetail = fbm(p * 0.038 + vec2(u_time * 1.8, -u_time * 1.4));
+    vec2 pw = p + (vec2(fTurb, fDetail) - 0.5) * 11.5;
+    float rw = length(pw);
+    float crackle = noise(vec2(a * 48.0 - spin * 5.0, rw * 0.09 - u_time * 11.0));
+    float sputter = pow(clamp(0.22 + 1.15 * crackle * fDetail * 1.55, 0.0, 1.55), 2.2);
+    float d = 1e4;
     // 1. Outer Horizon Twin Rings
     d = min(d, abs(rw - R * 1.04));
     d = min(d, abs(rw - R * 0.95));
@@ -323,9 +322,8 @@ float evalGrandMandala(vec2 fragPx, out float grandHue) {
     d = min(d, sdPolyOutline(pw, R * 0.33, 3.0, -spin * 1.8 + PI));
     d = min(d, sdRuneBand(pw, R * 0.23, R * 0.032, 16.0, spin * 1.9));
     d = min(d, abs(rw - R * 0.16));
+    energy = sparklerFilament(d, sputter, fTurb);
   }
-
-  float energy = sparklerFilament(d, sputter, fTurb);
 
   // Tight Pin-Sharp Incandescent Plasma Singularity Core + Solar Prominences (NO muddy yellow blob!)
   float coreProminence = fbm(vec2(a * 5.0 + u_time * 2.0, r * 0.04 - u_time * 4.5));
@@ -361,27 +359,20 @@ void main() {
   }
 
   // 3. Evaluate Pure Single-Element 3D Turbulent Fire/Plasma Shockwaves ("Chưởng 1 Màu Theo Từng Đợt")!
-  float focal = min(u_res.x, u_res.y) * 0.062;
-  vec2 screenMid = u_res * 0.5;
-
   for (int w = 0; w < 6; w++) {
-    float z = u_waves[w].z;
-    float wInt = u_waves[w].w;
-    if (wInt <= 0.005 || z <= 0.015) continue;
-
-    // 3D perspective center shifts toward camera axis as wave rushes past viewer
-    vec2 wCenter = mix(screenMid, u_waves[w].xy, z);
-    vec2 dp = fragPx - wCenter;
+    if (w >= u_waveCount) break;
+    vec4 wave = u_waves[w];
+    vec2 dp = fragPx - wave.xy;
     float r = length(dp);
-    float a = atan(dp.y, dp.x);
-
-    float waveR = focal / z;
-    float bandWidth = clamp(28.0 / pow(z, 0.78), 28.0, 220.0);
+    float waveR = wave.z;
+    float bandWidth = wave.w;
 
     if (abs(r - waveR) < bandWidth * 1.35) {
+      float a = atan(dp.y, dp.x);
+      vec3 detail = u_waveDetails[w];
       // Supersonic radial fire striations, steel-wool crackle & billowing plasma
-      float angularStreak = fbm(vec2(a * 18.0 + float(w) * 3.1, log(max(8.0, r)) * 4.5 - u_time * 9.0));
-      float plasmaBillow = fbm(dp * (0.02 * sqrt(z)) - normalize(dp + 1e-4) * (u_time * 4.5));
+      float angularStreak = fbm(vec2(a * 18.0 + detail.z * 3.1, log(max(8.0, r)) * 4.5 - u_time * 9.0));
+      float plasmaBillow = fbm(dp * detail.x - normalize(dp + 1e-4) * (u_time * 4.5));
       float sparkCrackle = noise(vec2(a * 56.0, r * 0.09 - u_time * 15.0));
 
       float rDistorted = r + (plasmaBillow - 0.5) * bandWidth * 0.45;
@@ -393,8 +384,7 @@ void main() {
         float shockRim = exp(-abs(normBand - 0.68) * 9.5) * 2.4;
         float filaments = pow(clamp(angularStreak * 1.55 * (0.4 + 0.95 * sparkCrackle), 0.0, 1.65), 2.3);
 
-        float fadeNearLens = clamp(z * 9.5, 0.0, 1.0) * clamp((1.04 - z) * 3.2, 0.0, 1.0);
-        float waveEnergy = (wakeEnv * 0.75 + shockRim) * (0.55 + 1.95 * filaments) * wInt * fadeNearLens;
+        float waveEnergy = (wakeEnv * 0.75 + shockRim) * (0.55 + 1.95 * filaments) * detail.y;
 
         // Map through the EXACT SAME Blackbody / Single-Element Fire ramp as the Mandala!
         hdrColor += mapElementalFire(waveEnergy, u_element, 0.0);
@@ -678,6 +668,8 @@ export function createArcaneWebGLRenderer(canvas) {
     grand: gl.getUniformLocation(sceneProg, 'u_grand'),
     grandSpin: gl.getUniformLocation(sceneProg, 'u_grandSpin'),
     waves: gl.getUniformLocation(sceneProg, 'u_waves'),
+    waveDetails: gl.getUniformLocation(sceneProg, 'u_waveDetails'),
+    waveCount: gl.getUniformLocation(sceneProg, 'u_waveCount'),
   };
 
   const uSpark = {
@@ -699,6 +691,56 @@ export function createArcaneWebGLRenderer(canvas) {
     hdrEncode: gl.getUniformLocation(compProg, 'u_hdrEncode'),
     time: gl.getUniformLocation(compProg, 'u_time'),
   };
+  gl.useProgram(bloomProg);
+  gl.uniform1i(uBloom.tex, 0);
+  gl.useProgram(compProg);
+  gl.uniform1i(uComp.scene, 0);
+  gl.uniform1i(uComp.bloom1, 1);
+  gl.uniform1i(uComp.bloom2, 2);
+
+  const waveGeometry = new Float32Array(24);
+  const waveDetails = new Float32Array(18);
+  let left, top, right, bottom;
+
+  function extendSceneBounds(x, y, radius) {
+    left = Math.min(left, x - radius);
+    right = Math.max(right, x + radius);
+    top = Math.min(top, y - radius);
+    bottom = Math.max(bottom, y + radius);
+  }
+
+  function projectWaves(waves) {
+    const midX = fboW * 0.5;
+    const midY = fboH * 0.5;
+    const focal = Math.min(fboW, fboH) * 0.062;
+    let count = 0;
+    for (let i = 0; i < 6; i++) {
+      const offset = i * 4;
+      const z = waves[offset + 2];
+      const intensity = waves[offset + 3];
+      if (intensity <= 0.005 || z <= 0.015) continue;
+      const x = midX * (1 - z) + waves[offset] * z;
+      const y = midY * (1 - z) + waves[offset + 1] * z;
+      const radius = focal / z;
+      const width = Math.min(220, Math.max(28, 28 / z ** 0.78));
+      const edge = width * 1.35 + 1; // Rounding margin around the shader's band cutoff.
+      const farX = Math.max(Math.abs(x), Math.abs(fboW - x));
+      const farY = Math.max(Math.abs(y), Math.abs(fboH - y));
+      if (radius - edge > Math.hypot(farX, farY)) continue;
+      const geometry = count * 4;
+      waveGeometry[geometry] = x;
+      waveGeometry[geometry + 1] = y;
+      waveGeometry[geometry + 2] = radius;
+      waveGeometry[geometry + 3] = width;
+      const detail = count * 3;
+      waveDetails[detail] = 0.02 * Math.sqrt(z);
+      waveDetails[detail + 1] = intensity * Math.min(1, z * 9.5) * Math.min(1, Math.max(0, (1.04 - z) * 3.2));
+      waveDetails[detail + 2] = i;
+      extendSceneBounds(x, y, radius + edge);
+      count++;
+    }
+    return count;
+  }
 
   let fboScene = null;
   let fboBloom1 = null;
@@ -790,9 +832,24 @@ export function createArcaneWebGLRenderer(canvas) {
   }
 
   function render(params, sparksArray, sparkCount) {
-    if (!fboScene) return;
+    if (!fboScene || !fboBloom1 || !fboBloom2) return;
 
     const hdrEncode = usingFloatFbo ? 1.0 : 16.0;
+    left = fboW;
+    top = fboH;
+    right = bottom = 0;
+    const waveCount = projectWaves(params.waves);
+    // The grand seal has full-screen god rays. Hand shaders are zero outside their cutoff.
+    if (params.grand[3] > 0.01) {
+      left = top = 0;
+      right = fboW;
+      bottom = fboH;
+    } else {
+      for (let i = 0; i < 12; i += 4) {
+        if (params.handPos[i + 3] <= 0.01 && params.handOri[i + 3] <= 0.01) continue;
+        extendSceneBounds(params.handPos[i], params.handPos[i + 1], params.handPos[i + 2] * 1.65 + 1);
+      }
+    }
 
     // ----------------------------------------------------------------------
     // PASS 1: Render HDR FBM Mandala + Prism Shockwaves + 3,000 Steel Sparks
@@ -810,10 +867,30 @@ export function createArcaneWebGLRenderer(canvas) {
     gl.uniform4fv(uScene.handOri, params.handOri);
     gl.uniform4fv(uScene.grand, params.grand);
     gl.uniform1f(uScene.grandSpin, params.grandSpin);
-    gl.uniform4fv(uScene.waves, params.waves);
+    gl.uniform1i(uScene.waveCount, waveCount);
+    if (waveCount) {
+      gl.uniform4fv(uScene.waves, waveGeometry, 0, waveCount * 4);
+      gl.uniform3fv(uScene.waveDetails, waveDetails, 0, waveCount * 3);
+    }
 
-    gl.bindVertexArray(emptyVao);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    const x0 = Math.max(0, Math.floor(left / fboW * fboScene.w));
+    const x1 = Math.min(fboScene.w, Math.ceil(right / fboW * fboScene.w));
+    const y0 = Math.max(0, Math.floor((1 - bottom / fboH) * fboScene.h));
+    const y1 = Math.min(fboScene.h, Math.ceil((1 - top / fboH) * fboScene.h));
+    const clipped = x0 !== 0 || y0 !== 0 || x1 !== fboScene.w || y1 !== fboScene.h;
+    if (clipped) {
+      gl.clearColor(0, 0, 0, usingFloatFbo ? 1 : 1 / 255);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+    }
+    if (x1 > x0 && y1 > y0) {
+      if (clipped) {
+        gl.enable(gl.SCISSOR_TEST);
+        gl.scissor(x0, y0, x1 - x0, y1 - y0);
+      }
+      gl.bindVertexArray(emptyVao);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      if (clipped) gl.disable(gl.SCISSOR_TEST);
+    }
 
     // Additive Ballistic Steel-Wool Sparks into HDR Scene Buffer!
     if (sparkCount > 0) {
@@ -827,7 +904,7 @@ export function createArcaneWebGLRenderer(canvas) {
 
       gl.bindVertexArray(sparkVao);
       gl.bindBuffer(gl.ARRAY_BUFFER, sparkVbo);
-      gl.bufferSubData(gl.ARRAY_BUFFER, 0, sparksArray.subarray(0, count * 8));
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, sparksArray, 0, count * 8);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
       gl.disable(gl.BLEND);
     }
@@ -840,7 +917,6 @@ export function createArcaneWebGLRenderer(canvas) {
     gl.useProgram(bloomProg);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, fboScene.tex);
-    gl.uniform1i(uBloom.tex, 0);
     gl.uniform2f(uBloom.texel, 1.0 / fboScene.w, 1.0 / fboScene.h);
     gl.uniform1f(uBloom.offset, 1.75);
     gl.uniform1f(uBloom.decodeRgbM, hdrEncode);
@@ -864,21 +940,16 @@ export function createArcaneWebGLRenderer(canvas) {
     // ----------------------------------------------------------------------
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, canvas.width, canvas.height);
-    gl.clearColor(0, 0, 0, 0);
-    gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(compProg);
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, fboScene.tex);
-    gl.uniform1i(uComp.scene, 0);
 
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, fboBloom1.tex);
-    gl.uniform1i(uComp.bloom1, 1);
 
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, fboBloom2.tex);
-    gl.uniform1i(uComp.bloom2, 2);
 
     gl.uniform1f(uComp.hdrEncode, hdrEncode);
     gl.uniform1f(uComp.time, params.time);

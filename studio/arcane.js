@@ -55,6 +55,7 @@ export function createArcaneEngine(canvas, onElementChange) {
   const handOriBuf = new Float32Array(12); // 3 * vec4
   const grandBuf = new Float32Array(4);
   const wavesBuf = new Float32Array(24);   // 6 * vec4
+  const sparkVortices = [];
 
   const engine = {
     elementKey: 'eldritch',
@@ -469,7 +470,14 @@ export function createArcaneEngine(canvas, onElementChange) {
     // Step All 2,800 Ballistic Welding Sparks & Pack GPU Instance Buffer!
     // ----------------------------------------------------------------------
     let gpuSparkCount = 0;
+    let hasLivingSparks = false;
     const outBuf = glRenderer.sparkBuffer;
+    const windPhase = engine.timeSec * 9;
+    const flickerPhase = engine.timeSec * 42;
+    sparkVortices.length = 0;
+    for (const actor of activeActors) {
+      if (actor.vortexPower > 0.2) sparkVortices.push(actor);
+    }
 
     for (let i = 0; i < POOL_SIZE; i++) {
       let life = spLife[i];
@@ -480,19 +488,17 @@ export function createArcaneEngine(canvas, onElementChange) {
 
       // Real gravity + quadratic air drag + turbulent air flutter!
       spVy[i] += 0.21 * dtScale;
-      spVx[i] += Math.sin(engine.timeSec * 9.0 + i) * 0.08 * dtScale;
+      spVx[i] += Math.sin(windPhase + i) * 0.08 * dtScale;
 
       // Pull into Black-Hole Vortex if fist is clenched!
-      for (const a of activeActors) {
-        if (a.vortexPower > 0.2) {
-          const dx = a.x - spX[i];
-          const dy = a.y - spY[i];
-          const d = Math.max(24, Math.hypot(dx, dy));
-          if (d < 480) {
-            const pull = (220 / d) * 0.55 * a.vortexPower * dtScale;
-            spVx[i] += (dx / d) * pull - (dy / d) * pull * 0.85;
-            spVy[i] += (dy / d) * pull + (dx / d) * pull * 0.85;
-          }
+      for (const actor of sparkVortices) {
+        const dx = actor.x - spX[i];
+        const dy = actor.y - spY[i];
+        const d = Math.max(24, Math.hypot(dx, dy));
+        if (d < 480) {
+          const pull = (220 / d) * 0.55 * actor.vortexPower * dtScale;
+          spVx[i] += (dx / d) * pull - (dy / d) * pull * 0.85;
+          spVy[i] += (dy / d) * pull + (dx / d) * pull * 0.85;
         }
       }
 
@@ -504,6 +510,7 @@ export function createArcaneEngine(canvas, onElementChange) {
       life -= 0.022 * dtScale;
       spLife[i] = life;
       if (life <= 0) continue;
+      hasLivingSparks = true;
 
       // Authentic Carbon-Steel Welding Spark Micro-Crackle Pop!
       // Cooling sparks occasionally pop & split into 3 razor-sharp sub-sparks!
@@ -526,10 +533,16 @@ export function createArcaneEngine(canvas, onElementChange) {
         }
       }
 
+      // Keep simulating offscreen sparks in case a vortex pulls them back into view.
+      // The shader's streak has at most a 23px half-length and a 1.35px half-width.
+      const midX = (spX[i] + spPx[i]) * 0.5;
+      const midY = (spY[i] + spPy[i]) * 0.5;
+      if (midX < -25 || midX > engine.viewW + 25 || midY < -25 || midY > engine.viewH + 25) continue;
+
       if (gpuSparkCount < glRenderer.maxSparks) {
         const tempRatio = clamp(life / Math.max(0.01, spMaxLife[i]), 0, 1);
         // High-frequency crackle twinkle + Blackbody HDR cooling curve!
-        const flicker = 0.72 + 0.48 * Math.sin(engine.timeSec * 42.0 + i * 3.7);
+        const flicker = 0.72 + 0.48 * Math.sin(flickerPhase + i * 3.7);
         const hdrIntensity = Math.pow(tempRatio, 1.35) * 6.8 * flicker;
 
         const base = gpuSparkCount * 8;
@@ -603,7 +616,7 @@ export function createArcaneEngine(canvas, onElementChange) {
       gpuSparkCount
     );
 
-    return gpuSparkCount > 0 || engine.prismWaves.length > 0 || engine.fusionProgress > 0;
+    return hasLivingSparks || engine.prismWaves.length > 0 || engine.fusionProgress > 0;
   }
 
   return {

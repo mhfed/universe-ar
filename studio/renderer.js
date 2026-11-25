@@ -213,13 +213,29 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
   let arcaneAnimating = false;
   let arcaneHold = false;
   let arcaneSizeDirty = true;
+  let stageVisible = true;
   const noHand = { visible: false };
 
-  function hasStrangeEffects() {
+  function isStrangeScene() {
     const { profile, mode } = getScene();
-    if (profile.id !== 'strange' || mode !== 'effects' || reduce.matches) return false;
+    return profile.id === 'strange' && mode === 'effects';
+  }
+
+  function hasStrangeEffects() {
+    if (!isStrangeScene() || reduce.matches) return false;
     if (arcane === undefined) arcane = createArcaneEngine(strangeCanvas, onStrangeElement);
     return Boolean(arcane);
+  }
+
+  function pauseOffscreen() {
+    return !stageVisible && isStrangeScene();
+  }
+
+  if (typeof IntersectionObserver === 'function') {
+    new IntersectionObserver(([entry]) => {
+      stageVisible = entry.isIntersecting;
+      if (stageVisible) invalidate();
+    }).observe(canvas);
   }
 
   strangeCanvas.addEventListener('webglcontextlost', event => {
@@ -297,17 +313,17 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
     invalidate();
   }
 
-  function draw(now) {
+  function draw(now, force = false) {
     request = 0;
+    if (document.hidden || (!force && pauseOffscreen())) {
+      last = 0;
+      return;
+    }
     const step = last ? frameStep(last, now) : 0;
     last = now;
     time += step;
     const scene = getScene();
     const { profile, mode, video, live, result, pointer, lens, still } = scene;
-    if (document.hidden) {
-      last = 0;
-      return;
-    }
     const demo = !live && !still;
     const combined = mode === 'gojo';
     const powers = mode !== 'looks' && (!still || still.ready);
@@ -463,13 +479,13 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
         }
       }
     }
-    if (animated) request = requestAnimationFrame(draw);
+    if (animated && !pauseOffscreen()) request = requestAnimationFrame(draw);
     else last = 0;
   }
 
   function invalidate() {
     dirty = true;
-    if (!request && !document.hidden) request = requestAnimationFrame(draw);
+    if (!request && !document.hidden && !pauseOffscreen()) request = requestAnimationFrame(draw);
   }
 
   return {
@@ -517,6 +533,10 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
       invalidate();
     },
     async capture() {
+      if (pauseOffscreen()) {
+        if (request) cancelAnimationFrame(request);
+        draw(performance.now(), true);
+      }
       const shot = document.createElement('canvas');
       shot.width = canvas.width;
       shot.height = canvas.height;
