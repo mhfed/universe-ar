@@ -160,9 +160,15 @@ body:not([data-mode="canvas"]) #drawing-canvas {
   color: #fde68a;
 }
 
+.universe-pill-btn[data-universe="magic"] {
+  border-color: rgba(244, 63, 94, 0.65);
+  background: linear-gradient(135deg, rgba(225, 29, 72, 0.28), rgba(245, 158, 11, 0.22));
+  color: #ffe4e6;
+}
+
 /* Universe Picker Modal */
 .universe-modal {
-  max-inline-size: 42rem;
+  max-inline-size: 56rem;
   inline-size: 100%;
 }
 
@@ -172,7 +178,7 @@ body:not([data-mode="canvas"]) #drawing-canvas {
 
 .universe-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.9rem;
   margin-block-end: 0.5rem;
 }
@@ -218,6 +224,16 @@ body:not([data-mode="canvas"]) #drawing-canvas {
   box-shadow: 0 12px 32px rgba(168, 85, 247, 0.32);
 }
 
+.universe-card.universe-magic {
+  border-color: rgba(244, 63, 94, 0.58);
+  background: linear-gradient(160deg, rgba(136, 19, 55, 0.54), rgba(15, 23, 42, 0.92));
+}
+
+.universe-card.universe-magic:hover {
+  border-color: #fb7185;
+  box-shadow: 0 12px 32px rgba(244, 63, 94, 0.34);
+}
+
 .universe-emoji {
   font-size: 1.85rem;
   line-height: 1;
@@ -255,6 +271,22 @@ body:not([data-mode="canvas"]) #drawing-canvas {
 .universe-anime .universe-cta {
   background: linear-gradient(135deg, #a855f7, #38bdf8);
   color: #090d16;
+}
+
+.universe-magic .universe-cta {
+  background: linear-gradient(135deg, #fb7185, #facc15);
+  color: #090d16;
+}
+
+.mode-btn[data-mode="magic"][aria-pressed="true"] {
+  background: rgba(225, 29, 72, 0.28);
+  color: #ffe4e6;
+  border-color: #fb7185;
+  box-shadow: inset 0 0 0 1px rgba(251, 113, 133, 0.72);
+}
+
+body[data-mode="magic"] .camera-dimmer {
+  opacity: 0.1;
 }
 
 /* Wibu Mode Active Colors */

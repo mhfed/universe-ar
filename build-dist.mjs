@@ -11,6 +11,7 @@ const STATIC_FILES = [
   'app.js',
   'anime.js',
   'cosplay.js',
+  'magic.js',
   'arcane.js',
   'arcane_webgl.js',
   'ironman.js',
@@ -29,6 +30,10 @@ for (const file of STATIC_FILES) {
 
 fs.cpSync(path.join(__dirname, 'models'), path.join(distDir, 'models'), { recursive: true });
 fs.cpSync(path.join(__dirname, 'vendor'), path.join(distDir, 'vendor'), { recursive: true });
+const assetsSrc = path.join(__dirname, 'assets');
+if (fs.existsSync(assetsSrc)) {
+  fs.cpSync(assetsSrc, path.join(distDir, 'assets'), { recursive: true });
+}
 
 const headers = `/vendor/mediapipe/wasm/*.wasm
   Content-Type: application/wasm

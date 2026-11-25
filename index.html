@@ -76,7 +76,7 @@
           Chọn luồng nhân vật bạn muốn hóa thân ngay trước Camera (có thể đổi qua lại bất cứ lúc nào):
         </p>
 
-        <div class="universe-grid" role="group" aria-label="Chọn vũ trụ Avengers hoặc Wibu Anime">
+        <div class="universe-grid" role="group" aria-label="Chọn vũ trụ Avengers, Wibu Anime hoặc Ảo Thuật AR">
           <button type="button" class="universe-card universe-avengers" data-pick-universe="avengers">
             <span class="universe-emoji" aria-hidden="true">🛡️</span>
             <strong class="universe-name">Vũ Trụ Avengers</strong>
@@ -89,6 +89,13 @@
             <strong class="universe-name">Vũ Trụ Wibu (Anime)</strong>
             <span class="universe-desc">AR Thay Đồ Cosplay (Akatsuki • Gojo • Tanjiro • Kaneki) + Chiêu Thức 2 Tay</span>
             <span class="universe-cta">Vào Wibu &amp; Bật Camera</span>
+          </button>
+
+          <button type="button" class="universe-card universe-magic" data-pick-universe="magic">
+            <span class="universe-emoji" aria-hidden="true">🎩</span>
+            <strong class="universe-name">Ảo Thuật AR (Magic)</strong>
+            <span class="universe-desc">Búng tay ra bông hoa hồng thật • Che tay bung cả bó hoa • Bão cánh hoa 3D</span>
+            <span class="universe-cta">Vào Ảo Thuật &amp; Bật Camera</span>
           </button>
         </div>
 
@@ -181,6 +188,24 @@
         </div>
       </div>
 
+      <!-- Tier 1 (Magic AR Flow): Magician Tricks Toolbar -->
+      <div
+        role="toolbar"
+        id="magic-toolbar"
+        class="hero-bar"
+        focusgroup="toolbar wrap"
+        aria-label="Chọn tiết mục Ảo Thuật AR"
+        aria-controls="overlay-canvas"
+        hidden
+      >
+        <div role="group" aria-label="Tiết mục Ảo Thuật" class="toolbar-group">
+          <button type="button" class="mode-btn" data-mode="magic" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2.5 0 4.5 2 4.5 4.5 0 2-1.2 3.7-3 4.3V21"/><path d="M12 3C9.5 3 7.5 5 7.5 7.5c0 2 1.2 3.7 3 4.3"/><path d="M12 16c2.2 0 4-1.3 4.5-3"/><path d="M12 18c-2.2 0-4-1.3-4.5-3"/></svg>
+            <span>🌹 Ảo Thuật Hoa Hồng</span>
+          </button>
+        </div>
+      </div>
+
       <div class="subdock-row">
         <!-- Tier 2: Contextual Hero Weapons & Utility Toolbar -->
         <div
@@ -190,6 +215,34 @@
           aria-label="Vũ khí và công cụ nhân vật"
           aria-controls="drawing-canvas"
         >
+          <!-- Magic AR Rose & Bouquet Controls -->
+          <div role="group" aria-label="Điều khiển Ảo Thuật Hoa Hồng" class="toolbar-group mode-only-magic" hidden>
+            <button type="button" class="element-btn" data-magic-theme="red" style="--el-color:#e11d48" aria-pressed="true" title="Hoa Hồng Đỏ Nhung (Phím 1)">
+              <span class="swatch-dot" aria-hidden="true"></span>
+              <span class="element-name">Hồng Đỏ</span>
+            </button>
+            <button type="button" class="element-btn" data-magic-theme="blue" style="--el-color:#38bdf8" aria-pressed="false" title="Hoa Hồng Xanh Tuyết (Phím 2)">
+              <span class="swatch-dot" aria-hidden="true"></span>
+              <span class="element-name">Hồng Xanh</span>
+            </button>
+            <button type="button" class="element-btn" data-magic-theme="gold" style="--el-color:#facc15" aria-pressed="false" title="Hoa Hồng Vàng Hoàng Kim (Phím 3)">
+              <span class="swatch-dot" aria-hidden="true"></span>
+              <span class="element-name">Hồng Vàng</span>
+            </button>
+            <button type="button" class="element-btn" id="magic-next-btn" style="--el-color:#fb7185" title="Búng ra hoa / Bung bó hoa / Bão cánh hoa (Phím F)">
+              <span class="swatch-dot" aria-hidden="true"></span>
+              <span class="element-name" id="magic-next-label">Búng Hoa (F)</span>
+            </button>
+            <button type="button" class="element-btn" id="magic-bouquet-btn" style="--el-color:#f472b6" title="Bung thẳng Bó Hoa Khổng Lồ (Phím G)">
+              <span class="swatch-dot" aria-hidden="true"></span>
+              <span class="element-name">Bó Hoa (G)</span>
+            </button>
+            <button type="button" class="element-btn" id="magic-reset-btn" style="--el-color:#94a3b8" title="Biến mất hoa để diễn lại (Phím R)">
+              <span class="swatch-dot" aria-hidden="true"></span>
+              <span class="element-name">Ẩn Hoa (R)</span>
+            </button>
+          </div>
+
           <!-- Wibu Real-Time AR Cosplay Outfit Switcher -->
           <div role="group" aria-label="Trang phục Cosplay AR" class="toolbar-group mode-only-cosplay" hidden>
             <button type="button" class="element-btn" data-cosplay="akatsuki" style="--el-color:#ef4444" aria-pressed="true" title="Akatsuki + Sharingan + Băng trán Làng Lá (Phím 1)">

@@ -7,6 +7,7 @@ import { createThorEngine } from './thor.js';
 import { createThanosEngine } from './thanos.js';
 import { createAnimeEngine, GOKU_FORMS } from './anime.js';
 import { createCosplayEngine, COSPLAY_OUTFITS } from './cosplay.js';
+import { createMagicEngine, MAGIC_THEMES } from './magic.js';
 
 const HAND_CONNECTIONS = [
   [0, 1], [1, 2], [2, 3], [3, 4],
@@ -17,7 +18,7 @@ const HAND_CONNECTIONS = [
 ];
 
 const ANIME_MODES = ['gojo', 'sukuna', 'jinwoo', 'goku', 'naruto'];
-const ALL_MODES = ['ironman', 'wolverine', 'thor', 'thanos', 'spider', 'arcane', 'canvas', 'cosplay', ...ANIME_MODES];
+const ALL_MODES = ['ironman', 'wolverine', 'thor', 'thanos', 'spider', 'arcane', 'canvas', 'cosplay', 'magic', ...ANIME_MODES];
 
 const MODE_TITLES = {
   ironman: 'Iron Man Mark LXXXV',
@@ -28,6 +29,7 @@ const MODE_TITLES = {
   arcane: 'Doctor Strange Ma Thuật',
   canvas: 'Bảng Vẽ 2 Tay',
   cosplay: 'AR Thay Đồ Cosplay Wibu (Mặt + Thân 3D)',
+  magic: 'Ảo Thuật AR — Búng Hoa Hồng & Bung Bó Hoa',
   gojo: 'Gojo Satoru — Hư Thức Tử & Vô Lượng Không Xứ',
   sukuna: 'Ryomen Sukuna — Phục Ma Ngự Trù Tử',
   jinwoo: 'Sung Jinwoo — Solo Leveling ARISE',
@@ -81,11 +83,18 @@ const toolbarStatus = document.getElementById('toolbar-status');
 
 const heroToolbarEl = document.getElementById('hero-toolbar');
 const animeToolbarEl = document.getElementById('anime-toolbar');
+const magicToolbarEl = document.getElementById('magic-toolbar');
 const toolbarEl = document.getElementById('drawing-toolbar');
 const modeButtons = Array.from(document.querySelectorAll('.mode-btn[data-mode]'));
 const universePickButtons = Array.from(document.querySelectorAll('[data-pick-universe]'));
 const universeSwitchBtn = document.getElementById('universe-switch-btn');
 const brandTitleText = document.getElementById('brand-title-text');
+
+const magicThemeButtons = Array.from(document.querySelectorAll('.element-btn[data-magic-theme]'));
+const magicNextBtn = document.getElementById('magic-next-btn');
+const magicNextLabel = document.getElementById('magic-next-label');
+const magicBouquetBtn = document.getElementById('magic-bouquet-btn');
+const magicResetBtn = document.getElementById('magic-reset-btn');
 
 const gokuFormButtons = Array.from(document.querySelectorAll('.element-btn[data-goku-form]'));
 const cosplayButtons = Array.from(document.querySelectorAll('.element-btn[data-cosplay]'));
@@ -117,6 +126,7 @@ const modeElementGroups = {
   arcane: Array.from(document.querySelectorAll('.mode-only-arcane')),
   canvas: Array.from(document.querySelectorAll('.mode-only-canvas')),
   cosplay: Array.from(document.querySelectorAll('.mode-only-cosplay')),
+  magic: Array.from(document.querySelectorAll('.mode-only-magic')),
   goku: Array.from(document.querySelectorAll('.mode-only-goku')),
 };
 const animeOnlyEls = Array.from(document.querySelectorAll('.mode-only-anime'));
@@ -153,6 +163,7 @@ const thanos = createThanosEngine();
 const spider = createSpiderEngine();
 const anime = createAnimeEngine();
 const cosplay = createCosplayEngine();
+const magic = createMagicEngine();
 anime.setOnDomainChange((active) => {
   if (animeDomainBtn) animeDomainBtn.setAttribute('aria-pressed', String(active));
 });
@@ -172,7 +183,7 @@ const arcane = createArcaneEngine({
   },
 });
 
-const allHeroEngines = [ironman, wolverine, thor, thanos, spider, arcane, anime, cosplay];
+const allHeroEngines = [ironman, wolverine, thor, thanos, spider, arcane, anime, cosplay, magic];
 
 function getActiveEngine() {
   if (state.mode === 'ironman') return ironman;
@@ -182,6 +193,7 @@ function getActiveEngine() {
   if (state.mode === 'spider') return spider;
   if (state.mode === 'arcane') return arcane;
   if (state.mode === 'cosplay') return cosplay;
+  if (state.mode === 'magic') return magic;
   if (ANIME_MODES.includes(state.mode)) return anime;
   return null;
 }
@@ -1111,6 +1123,40 @@ function renderOverlay() {
     return;
   }
 
+  if (state.mode === 'magic') {
+    const s = magic.updateAndRender(overlayCtx, leftHand, rightHand, mousePreview, videoEl, landmarkToScreen);
+    setHandMeter(true, leftHand.visible, 100, s.stage === 'covering' ? 'CHE TAY ✨' : 'TAY TRÁI');
+    setHandMeter(false, rightHand.visible, 100, s.stage === 'bouquet' ? 'BÓ HOA 💐' : s.stage === 'single' ? 'HOA HỒNG 🌹' : 'BÚNG TAY 🫰');
+    gestureBadge.dataset.state =
+      s.stage === 'bouquet' || s.stage === 'storm' ? 'spider' : s.stage === 'covering' ? 'vortex' : s.stage === 'single' ? 'shield' : 'idle';
+
+    if (magicNextLabel) {
+      magicNextLabel.textContent =
+        s.stage === 'empty' || s.stage === 'storm'
+          ? 'Búng Hoa (F)'
+          : s.stage === 'single' || s.stage === 'covering'
+            ? 'Bung Bó Hoa (F)'
+            : 'Bão Cánh Hoa (F)';
+    }
+
+    if (s.stage === 'empty') {
+      gestureStateLabel.textContent = state.cameraRunning
+        ? '🫰 Búng ngón Cái+Giữa (hoặc nắm rồi xòe nhanh) để biến ra Bông Hoa Hồng!'
+        : 'Click vào màn hình hoặc bấm F để búng ra Bông Hoa Hồng -> Bung Bó Hoa!';
+    } else if (s.stage === 'single') {
+      gestureStateLabel.textContent = '🌹 Đã ra Hoa Hồng! Xòe tay kia che ngang qua bông hoa rồi rút ra để biến thành CẢ BÓ HOA!';
+    } else if (s.stage === 'covering') {
+      gestureStateLabel.textContent = s.swapArmed
+        ? '✨ Đã tráo bài thành công! Rút tay che ra ngay để BUNG BÓ HOA!'
+        : '🎩 Đang che bông hoa... giữ 0.2 giây...';
+    } else if (s.stage === 'bouquet') {
+      gestureStateLabel.textContent = '💐 BÓ HOA HỒNG KHỔNG LỒ! Đẩy tay về Camera (hoặc bấm F) để tung Bão Cánh Hoa • Vẩy xuống để ẩn';
+    } else {
+      gestureStateLabel.textContent = '🌸 BÃO CÁNH HOA HỒNG 3D — Sẵn sàng diễn màn tiếp theo!';
+    }
+    return;
+  }
+
   if (state.mode === 'cosplay') {
     const s = cosplay.updateAndRender(
       overlayCtx,
@@ -1386,24 +1432,33 @@ function renderLoop(now) {
 // ============================================================================
 
 function selectUniverse(universe, shouldStartCamera = false) {
-  const nextU = universe === 'anime' ? 'anime' : 'avengers';
+  const nextU = universe === 'anime' ? 'anime' : universe === 'magic' ? 'magic' : 'avengers';
   state.universe = nextU;
   document.body.dataset.universe = nextU;
 
   heroToolbarEl.hidden = nextU !== 'avengers';
   if (animeToolbarEl) animeToolbarEl.hidden = nextU !== 'anime';
+  if (magicToolbarEl) magicToolbarEl.hidden = nextU !== 'magic';
 
   if (universeSwitchBtn) {
     universeSwitchBtn.dataset.universe = nextU;
-    universeSwitchBtn.textContent = nextU === 'anime' ? '🛡️ Đổi sang Avengers' : '⚡ Đổi sang Wibu';
+    universeSwitchBtn.textContent =
+      nextU === 'avengers' ? '⚡ Đổi sang Wibu' : nextU === 'anime' ? '🎩 Sang Ảo Thuật' : '🛡️ Sang Avengers';
   }
   if (brandTitleText) {
-    brandTitleText.textContent = nextU === 'anime' ? 'Wibu Anime AI Studio' : 'Marvel Avengers AI Studio';
+    brandTitleText.textContent =
+      nextU === 'anime' ? 'Wibu Anime AI Studio' : nextU === 'magic' ? 'Ảo Thuật AR Studio' : 'Marvel Avengers AI Studio';
   }
 
-  const targetMode = nextU === 'anime' ? 'cosplay' : 'arcane';
+  const targetMode = nextU === 'anime' ? 'cosplay' : nextU === 'magic' ? 'magic' : 'arcane';
   selectMode(targetMode);
-  announceStatus(nextU === 'anime' ? 'Đã vào Vũ Trụ Wibu Anime' : 'Đã vào Vũ Trụ Marvel Avengers');
+  announceStatus(
+    nextU === 'anime'
+      ? 'Đã vào Vũ Trụ Wibu Anime'
+      : nextU === 'magic'
+        ? 'Đã vào Vũ Trụ Ảo Thuật AR Hoa Hồng'
+        : 'Đã vào Vũ Trụ Marvel Avengers'
+  );
 
   if (shouldStartCamera) {
     if (!state.cameraRunning) {
@@ -1533,7 +1588,37 @@ function wireEvents() {
   if (universeSwitchBtn) {
     universeSwitchBtn.addEventListener('click', () => {
       unlockAllAudio();
-      selectUniverse(state.universe === 'anime' ? 'avengers' : 'anime', false);
+      const next = state.universe === 'avengers' ? 'anime' : state.universe === 'anime' ? 'magic' : 'avengers';
+      selectUniverse(next, false);
+    });
+  }
+
+  for (const btn of magicThemeButtons) {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.magicTheme;
+      magic.setTheme(id);
+      for (const b of magicThemeButtons) b.setAttribute('aria-pressed', String(b === btn));
+      announceStatus(`Đã đổi sang ${MAGIC_THEMES[id]?.name || id}`);
+    });
+  }
+
+  if (magicNextBtn) {
+    magicNextBtn.addEventListener('click', () => {
+      unlockAllAudio();
+      magic.triggerNextStage();
+    });
+  }
+
+  if (magicBouquetBtn) {
+    magicBouquetBtn.addEventListener('click', () => {
+      unlockAllAudio();
+      magic.revealBouquetAtCenter();
+    });
+  }
+
+  if (magicResetBtn) {
+    magicResetBtn.addEventListener('click', () => {
+      magic.resetTrick(true);
     });
   }
 
@@ -1791,6 +1876,12 @@ function wireEvents() {
       if (m[k]) elementButtons.find((b) => b.dataset.element === m[k])?.click();
       else if (k === 'f') novaBtn.click();
       else if (k === 'g') toggleGrandSealBtn.click();
+    } else if (state.mode === 'magic') {
+      const m = { '1': 'red', '2': 'blue', '3': 'gold' };
+      if (m[k]) magicThemeButtons.find((b) => b.dataset.magicTheme === m[k])?.click();
+      else if (k === 'f' && magicNextBtn) magicNextBtn.click();
+      else if (k === 'g' && magicBouquetBtn) magicBouquetBtn.click();
+      else if (k === 'r' && magicResetBtn) magicResetBtn.click();
     } else if (state.mode === 'cosplay') {
       const m = { '1': 'akatsuki', '2': 'gojo', '3': 'tanjiro', '4': 'kaneki', '5': 'jinwoo' };
       if (m[k]) cosplayButtons.find((b) => b.dataset.cosplay === m[k])?.click();
@@ -1835,6 +1926,8 @@ function wireEvents() {
       spider.fireMouseWebAt(e.clientX, e.clientY);
     } else if (state.mode === 'arcane') {
       mouseChannel.pressed = true;
+    } else if (state.mode === 'magic') {
+      magic.triggerNextStage(e.clientX, e.clientY);
     } else if (state.mode === 'cosplay') {
       if (cosplayAltBtn) cosplayAltBtn.click();
     } else if (ANIME_MODES.includes(state.mode)) {
