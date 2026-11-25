@@ -1,0 +1,19 @@
+{
+  "name": "ai-air-canvas",
+  "version": "1.0.0",
+  "description": "AI Hand Gesture Air Drawing App using MediaPipe HandLandmarker",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "build": "node build-dist.mjs",
+    "deploy": "node build-dist.mjs && wrangler deploy",
+    "preview": "wrangler dev"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "^1.2.3"
+  },
+  "devDependencies": {
+    "wrangler": "^4.168.0"
+  }
+}
