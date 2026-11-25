@@ -232,6 +232,6 @@ Verification:
 - `node /tmp/universe-countdown-qa.cjs` verified the three digits, recorder start after three seconds, steady preview size, advancing camera stream, cancel and fullscreen exit, and 720 × 1280 MP4 and WebM with composited effects, shake and audible sound. Inspected desktop and 390 px countdown screenshots. Chrome replayed both recordings at 1×. Physical phones and webcams were not exercised.
 - `node /tmp/universe-clip-qa.cjs` passed for original-format recording and audio.
 
-Release gate: push main, run `npm run deploy`, then run `UNIVERSE_URL=https://ai-hero-hand-studio.nmhieu04091999.workers.dev node /tmp/universe-countdown-qa.cjs`.
+Release: `git push origin main` and `npm run deploy` published `ce31b55`. `UNIVERSE_URL=https://ai-hero-hand-studio.nmhieu04091999.workers.dev node /tmp/universe-countdown-qa.cjs` passed for MP4 and WebM after verifying the deployed assets and retrying the initial timeout. The two recorders started after 3004 and 3005 ms. No release steps remain.
 
-Rework: 0 cycles. Token usage: unavailable.
+Rework: 1 verification cycle for the first production test timeout. Token usage: unavailable.
