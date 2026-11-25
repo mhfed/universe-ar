@@ -20,4 +20,9 @@ export const universes = {
     entry('goku', 'Son Goku', 'Kamehameha', 'beam', 'gi', '#85e9ff', '#ce6425'),
     entry('naruto', 'Naruto', 'Rasengan', 'orbit', 'shinobi', '#80d7ff', '#b17536'),
   ],
+  magic: [
+    entry('magic-red', 'Hồng Đỏ Nhung', 'Ảo Thuật Hoa Hồng', 'magic-rose', 'magic', '#fb7185', '#881337'),
+    entry('magic-blue', 'Hồng Xanh Tuyết', 'Ảo Thuật Hoa Hồng', 'magic-rose', 'magic', '#38bdf8', '#0c4a6e'),
+    entry('magic-gold', 'Hồng Vàng Hoàng Kim', 'Ảo Thuật Hoa Hồng', 'magic-rose', 'magic', '#facc15', '#713f12'),
+  ],
 };

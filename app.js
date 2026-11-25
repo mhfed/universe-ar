@@ -18,6 +18,8 @@ const tryOnButton = byId('try-on');
 const tryOnNote = byId('try-on-note');
 const retryButton = byId('retry');
 const castButton = byId('cast');
+const magicBouquetButton = byId('magic-bouquet');
+const magicResetButton = byId('magic-reset');
 const soundButton = byId('impact-sound');
 const fullscreenButton = byId('fullscreen');
 const recordButton = byId('record');
@@ -27,9 +29,10 @@ const clipCountdownNumber = byId('clip-countdown-number');
 const status = byId('status');
 const universeButtons = [...document.querySelectorAll('[data-universe]')];
 const lensOutput = byId('lens-output');
+const modeControl = document.querySelector('.mode-control');
 const modeButtons = [...document.querySelectorAll('[data-mode]')];
 
-const selected = { avengers: universes.avengers[0], wibu: universes.wibu[0] };
+const selected = { avengers: universes.avengers[0], wibu: universes.wibu[0], magic: universes.magic[0] };
 const scene = { mode: 'effects', profile: selected.avengers, video, live: false, result: null, pointer: null, lens: null, still: null, portrait: false };
 const impact = createStrangeImpact(byId('stage-picture'));
 const renderer = createRenderer(byId('effects'), () => scene, {
@@ -37,6 +40,7 @@ const renderer = createRenderer(byId('effects'), () => scene, {
   strangeLight: byId('strange-light'),
   onStrangeElement: name => say('Doctor Strange · ' + name),
   onStrangeImpact: impact.hit,
+  onMagicStage: () => updateLabels(),
   onReset: impact.reset,
 });
 const gesture = createGesture();
@@ -72,6 +76,7 @@ let clipUrl;
 const recordingAvailable = canRecordClip();
 const canCast = () => scene.mode !== 'looks' && (!scene.still || scene.still.ready);
 const isStrange = () => scene.profile.id === 'strange' && scene.mode === 'effects';
+const isMagic = () => scene.profile.effect === 'magic-rose' && scene.mode === 'effects';
 
 function say(message, error = false) {
   if (status.textContent !== message) status.textContent = message;
@@ -82,6 +87,9 @@ function guidance() {
   if (isStrange()) return scene.live
     ? 'Xòe một tay. Đẩy về camera hoặc vung lên, xuống, trái, phải để tung chưởng.'
     : 'Bấm F để chưởng thẳng, Shift + phím mũi tên để chưởng theo hướng. Giữ trên khung để mở đại trận.';
+  if (isMagic()) return scene.live
+    ? 'Búng tay (ngón cái + giữa) ra 1 bông hoa. Tay kia che qua rồi kéo ra để bung Bó Hoa, đẩy tay về camera để nổ Bão Cánh Hoa.'
+    : 'Bấm vào khung hoặc phím F để búng ra hoa hồng, bung bó hoa và bão cánh hoa. Phím G bung thẳng bó hoa, R ẩn hoa.';
   if (scene.mode === 'gojo') {
     if (!scene.live) return 'Ảnh mẫu thay áo bằng FASHN. Bật camera để chụp ảnh của bạn.';
     return 'Giữ mặt, vai và thân trên trong khung. Đưa tay lại gần để hợp nhất năng lượng.';
@@ -105,9 +113,18 @@ function updateLabels() {
     button.hidden = button.dataset.mode === 'gojo' && scene.profile.id !== 'gojo';
     button.setAttribute('aria-pressed', String(button.dataset.mode === scene.mode));
   }
+  if (modeControl) modeControl.hidden = universe === 'magic';
   cameraButton.textContent = opening ? 'Hủy mở camera' : scene.live ? 'Tắt camera' : scene.still ? 'Chụp lại' : 'Bật camera';
   cameraButton.setAttribute('aria-pressed', String(scene.live));
+  const magicActive = isMagic();
+  const magicStage = magicActive ? renderer.magicStage() : 'empty';
   castButton.hidden = !canCast();
+  const castText = magicActive
+    ? (magicStage === 'single' || magicStage === 'covering' ? 'Bó hoa ' : magicStage === 'bouquet' ? 'Bão cánh hoa ' : 'Búng hoa ')
+    : 'Tung chiêu ';
+  castButton.replaceChildren(castText, Object.assign(document.createElement('kbd'), { textContent: 'F' }));
+  magicBouquetButton.hidden = !magicActive;
+  magicResetButton.hidden = !magicActive;
   soundButton.hidden = !isStrange() || !impact.available;
   soundButton.setAttribute('aria-pressed', String(!impact.muted));
   soundButton.textContent = impact.muted ? 'Âm thanh tắt' : 'Âm thanh bật';
@@ -121,7 +138,18 @@ function updateLabels() {
     : tryOnProvider === undefined ? 'Đang kiểm tra kết nối FASHN…' : 'Thay áo AI chưa được bật trên máy chủ này.';
   captureButton.disabled = activeCapture || Boolean(scene.still && !scene.still.ready);
   captureButton.textContent = scene.still ? 'Lưu PNG' : 'Chụp ảnh';
-  byId('stage-label').textContent = scene.mode === 'gojo' ? 'Gojo · Hư Thức Tử' : scene.mode === 'effects' ? scene.profile.power : scene.profile.name;
+  const magicStageText = {
+    empty: 'Ảo Thuật Hoa Hồng',
+    single: '1 Bông Hoa Hồng',
+    covering: 'Đang Che Tay… Rút Ra!',
+    bouquet: 'Bó Hoa Khổng Lồ',
+    storm: 'Bão Cánh Hoa 3D',
+  }[magicStage] || 'Ảo Thuật Hoa Hồng';
+  byId('stage-label').textContent = scene.mode === 'gojo'
+    ? 'Gojo · Hư Thức Tử'
+    : magicActive
+      ? `${scene.profile.name} · ${magicStageText}`
+      : scene.mode === 'effects' ? scene.profile.power : scene.profile.name;
 }
 
 function clearResult() {
@@ -142,6 +170,7 @@ function consume(result, now, sampledAt) {
   scene.result = { ...result, received: now };
   renderer.markResult();
   if (renderer.trackStrange(result.hands, sampledAt)) return;
+  if (isMagic()) return;
   if (!canCast() || !result.hands?.length) {
     if (canCast()) gesture.update([], now);
     return;
@@ -400,14 +429,17 @@ async function changeGojoOutfit() {
 }
 
 function selectProfile(profile) {
-  const previous=scene.profile.id;
+  const previous = scene.profile.id;
+  const keepMagicStage = previous.startsWith('magic-') && profile.id.startsWith('magic-');
   scene.profile = selected[universe] = profile;
   for (const button of roster.children) button.setAttribute('aria-pressed', String(button.dataset.character === profile.id));
   if (profile.id === 'gojo' && previous !== 'gojo') changeMode('gojo');
+  else if (profile.effect === 'magic-rose' && scene.mode !== 'effects') changeMode('effects');
   else if (scene.mode === 'gojo' && profile.id !== 'gojo') changeMode('effects');
   gesture.reset();
   updateLabels();
-  renderer.reset();
+  if (keepMagicStage) renderer.invalidate();
+  else renderer.reset();
   if (scene.live && isStrange()) impact.prepareAudio();
   if (trackStatus === 'idle' || trackStatus === 'ready') say(guidance());
 }
@@ -597,6 +629,8 @@ async function toggleFullscreen() {
 }
 
 castButton.addEventListener('click', cast);
+magicBouquetButton.addEventListener('click', () => renderer.magicBouquet(scene.pointer));
+magicResetButton.addEventListener('click', () => renderer.magicReset());
 soundButton.addEventListener('click', () => {
   impact.setMuted(!impact.muted);
   updateLabels();
@@ -615,6 +649,22 @@ document.addEventListener('keydown', event => {
   if (event.code === 'KeyF') {
     cast();
     return;
+  }
+  if (isMagic()) {
+    if (event.code === 'KeyG') {
+      renderer.magicBouquet(scene.pointer);
+      return;
+    }
+    if (event.code === 'KeyR') {
+      renderer.magicReset();
+      return;
+    }
+    const themeDigit = /^Digit([1-3])$/.exec(event.code);
+    if (themeDigit) {
+      const target = universes.magic[Number(themeDigit[1]) - 1];
+      if (target) selectProfile(target);
+      return;
+    }
   }
   if (event.shiftKey && isStrange()) {
     const direction = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[event.code];

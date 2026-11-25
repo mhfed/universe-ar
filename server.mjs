@@ -18,6 +18,7 @@ const mime = {
   '.js': 'application/javascript; charset=utf-8',
   '.mjs': 'application/javascript; charset=utf-8',
   '.wasm': 'application/wasm',
+  '.png': 'image/png',
   '.webp': 'image/webp',
   '.jpg': 'image/jpeg',
   '.task': 'application/octet-stream',

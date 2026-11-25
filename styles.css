@@ -164,6 +164,7 @@ kbd { color: #c3bbaf; border: 1px solid #535052; border-radius: 3px; font: .78re
 .library-heading { margin-bottom: 14px; }
 #roster-count { color: var(--muted); font-size: .8125rem; }
 .universes, .modes { background: #111113; display: grid; grid-template-columns: 1fr 1fr; padding: 3px; border: 1px solid var(--line); border-radius: 7px; }
+.universes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .universes button, .modes button { min-height: 37px; background: transparent; border: 0; border-radius: 4px; color: var(--muted); font-size: .875rem; font-weight: 650; }
 .universes button[aria-pressed="true"], .modes button[aria-pressed="true"] { background: #323134; color: #fff; }
 .universes button:hover, .modes button:hover { color: #fff; }

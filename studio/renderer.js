@@ -4,6 +4,7 @@ import { drawGojoJacket } from './gojo-outfit.js';
 import { createGojoEffects } from './gojo-power.js';
 import { resolveGojoEnergy } from './gojo-geometry.js';
 import { createArcaneEngine } from './arcane.js';
+import { createMagicEngine } from './magic.js';
 import { createStrangeGesture, STRANGE_DIRECTIONS } from './strange-gesture.js';
 import { paintStrangeLight, STRANGE_FLASH_MS } from './strange-light.js';
 import { fitPortraitFrame, portraitBounds, projectGesture } from './portrait-frame.js';
@@ -209,11 +210,13 @@ function drawPower(ctx, profile, x, y, r, time, strength = 1) {
   ctx.restore();
 }
 
-export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, onStrangeElement, onStrangeImpact, onReset }) {
+export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, onStrangeElement, onStrangeImpact, onMagicStage, onReset }) {
   const ctx = canvas.getContext('2d', { alpha: true });
   const lightCtx = strangeLight.getContext('2d', { alpha: true });
   const reduce = matchMedia('(prefers-reduced-motion: reduce)');
   let arcane;
+  let magic;
+  let magicStageLast = 'empty';
   let arcaneAnimating = false;
   let arcaneHold = false;
   let arcaneSizeDirty = true;
@@ -222,12 +225,33 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
   let portraitCamera = null;
   let portraitFace = null;
   let portraitFaceAt = 0;
+  let lastDemoX = 320;
+  let lastDemoY = 240;
   const strangeGesture = createStrangeGesture();
   const noHand = { visible: false };
 
   function isStrangeScene() {
     const { profile, mode } = getScene();
     return profile.id === 'strange' && mode === 'effects';
+  }
+
+  function isMagicScene() {
+    const { profile, mode } = getScene();
+    return profile.effect === 'magic-rose' && mode === 'effects';
+  }
+
+  function magicTheme(profile) {
+    if (profile.id === 'magic-blue') return 'blue';
+    if (profile.id === 'magic-gold') return 'gold';
+    return 'red';
+  }
+
+  function ensureMagic() {
+    if (!magic) {
+      magic = createMagicEngine({ onAssetLoad: invalidate });
+      magic.resize(w, h);
+    }
+    return magic;
   }
 
   function hasStrangeEffects() {
@@ -343,6 +367,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
     strangeLight.height = Math.max(1, Math.round(h * .75));
     lightCtx.setTransform(strangeLight.width / w, 0, 0, strangeLight.height / h, 0, 0);
     arcaneSizeDirty = true;
+    magic?.resize(w, h);
     portraitCamera = null;
     strangeGesture.reset();
     invalidate();
@@ -406,11 +431,13 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
       arcaneSizeDirty = false;
     }
     const useArcane = hasStrangeEffects();
+    const useMagic = isMagicScene();
     strangeCanvas.toggleAttribute('hidden', !useArcane);
-    if (useArcane) burst = null;
+    if (useArcane || useMagic) burst = null;
     const animated = Boolean(burst || strangeFlash || (scene.portrait && live && shown?.face) ||
       (powers && !reduce.matches && (demo || still || shown?.hands?.length))
-      || (useArcane && arcaneAnimating));
+      || (useArcane && arcaneAnimating)
+      || (useMagic && (demo || shown?.hands?.length || Boolean(magic?.hasActivity()))));
     if (dirty || animated || powers && (!demo && smoothHands.size)) {
       const redrawBase = dirty || !useArcane;
       dirty = false;
@@ -434,6 +461,8 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
         if (redrawBase) ctx.drawImage(preview, left, top, pw, ph);
         const map = ([x,y]) => ({ x: left + x*pw, y: top + y*ph });
         ({ x: demoX, y: demoY } = map(demoHand));
+        lastDemoX = demoX;
+        lastDemoY = demoY;
         if (strangeFlash) demoFaceLight = demoFace.map(map);
         if (!combined && mode !== 'effects') outfit(profile,demoFace.map(map),demoPose.map(map),demoBody.map(map));
       }
@@ -467,6 +496,26 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
             y: pointer?.y ?? demoY,
             pressed: arcaneHold,
           }, mapSample);
+        }
+      } else if (useMagic) {
+        const engine = ensureMagic();
+        engine.setTheme(magicTheme(profile));
+        const hands = frame && shown?.hands?.length
+          ? [...shown.hands].sort((a, b) => a.id.localeCompare(b.id)) : [];
+        const leftHand = hands.find(item => item.id === 'Left') ?? (hands.length > 1 ? hands[0] : null);
+        const rightHand = hands.find(item => item.id === 'Right') ?? (hands.find(item => item !== leftHand) ?? hands[0] ?? null);
+        const slot = hand => hand ? { visible: true, landmarks: hand.points } : noHand;
+        const magicState = engine.updateAndRender(
+          ctx,
+          slot(leftHand),
+          slot(rightHand),
+          { enabled: demo, x: pointer?.x ?? demoX, y: pointer?.y ?? demoY },
+          live ? video : null,
+          mapSample,
+        );
+        if (magicState.stage !== magicStageLast) {
+          magicStageLast = magicState.stage;
+          onMagicStage?.(magicState.stage);
         }
       } else if (powers) {
         if (demo || still?.ready) {
@@ -670,6 +719,32 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
       arcaneAnimating = true;
       invalidate();
     },
+    magicBouquet(point) {
+      if (!isMagicScene()) return;
+      const engine = ensureMagic();
+      engine.setTheme(magicTheme(getScene().profile));
+      engine.unlockAudio();
+      const x = point?.x ?? (getScene().live ? w * .5 : lastDemoX);
+      const y = point?.y ?? (getScene().live ? h * .58 : lastDemoY);
+      engine.revealBouquetAtCenter(x, y);
+      if (magicStageLast !== engine.getStage()) {
+        magicStageLast = engine.getStage();
+        onMagicStage?.(magicStageLast);
+      }
+      invalidate();
+    },
+    magicReset() {
+      if (!magic) return;
+      magic.resetTrick(true);
+      if (magicStageLast !== 'empty') {
+        magicStageLast = 'empty';
+        onMagicStage?.('empty');
+      }
+      invalidate();
+    },
+    magicStage() {
+      return magic?.getStage() ?? 'empty';
+    },
     markResult() {
       clearTimeout(expires);
       expires = setTimeout(invalidate, 435);
@@ -682,6 +757,8 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
       gojoPalms=[];
       fusion = 0;
       arcane?.reset();
+      magic?.resetTrick(false);
+      magicStageLast = 'empty';
       strangeFlash = null;
       portraitCamera = null;
       portraitFace = null;
@@ -695,6 +772,20 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
     burst(point) {
       if (isStrangeScene()) {
         strangeCast('forward', point);
+        return;
+      }
+      if (isMagicScene()) {
+        const engine = ensureMagic();
+        engine.setTheme(magicTheme(getScene().profile));
+        engine.unlockAudio();
+        const x = point?.x ?? (getScene().live ? w * .5 : lastDemoX);
+        const y = point?.y ?? (getScene().live ? h * .58 : lastDemoY);
+        engine.triggerNextStage(x, y);
+        if (magicStageLast !== engine.getStage()) {
+          magicStageLast = engine.getStage();
+          onMagicStage?.(magicStageLast);
+        }
+        invalidate();
         return;
       }
       const origin=getScene().profile.id==='gojo' ? gojoPalms.find(p=>p.tone==='purple') ?? point : point;
