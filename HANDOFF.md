@@ -183,3 +183,20 @@ Verification:
 Release gate: commit, push main, run `npm run deploy` and repeat the impact and fullscreen smoke over HTTPS.
 
 Rework: 2 verification cycles for waiting for the repaint after fullscreen exit and decoding a video data URI with a multi-codec MIME type. Token usage: unavailable.
+
+## Fullscreen clip recording
+
+Status: the fullscreen studio exposes Quay clip and Dừng quay. Stopping creates a local download and retains a Tải clip link. Exiting fullscreen, stopping the camera or hiding the tab finishes the current clip.
+
+Contract: the browser records a fixed-size canvas at up to 30 FPS, with a 1280 px long edge cap. The video composites camera or demo, existing overlays, light spill and the live picture transform. The recorder receives a tap of the same post-compressor spell audio heard in the app, including mute, and uses no microphone input. It prefers MP4 and falls back to WebM. Recordings stay in memory with a 96 MiB stop threshold. Finishing a clip releases the recording tracks while leaving the webcam open.
+
+Changed: `app.js`, `index.html`, `styles.css`, `studio/{clip-recorder,renderer,strange-impact}.js`, `HANDOFF.md`.
+
+Verification:
+- `npm test` (27), `npm run build`, `git diff --check` and `node /Users/hieuminh/.agents/skills/design-taste-frontend/scripts/lint.mjs --app` passed.
+- `node /tmp/universe-clip-qa.cjs` passed on Chrome with a fake webcam and genuine MediaPipe tracking. Native fullscreen exported H.264/AAC MP4. The 390 px viewport fallback exported VP8/Opus WebM on fullscreen exit. Verified all camera and effect layers, sampled shake transforms, audible audio with FFmpeg, download retries and unchanged camera track IDs. Chrome played the files at 1×. Inspected the mobile controls and a frame decoded from the downloaded clip.
+- `CHECK_OFFSCREEN=1 node /tmp/universe-arcane-qa.cjs` and `GOJO_SMOKE=fixture node /tmp/universe-fashn-strange-regression.cjs` passed. Physical mobile browsers were not exercised.
+
+Release gate: commit, push main, run `npm run deploy` and repeat the two download paths on the public URL.
+
+Rework: 2 verification cycles to wait for face and hand landmarks before measuring light and to check track types independently of container stream order. Token usage: unavailable.

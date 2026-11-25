@@ -2,6 +2,7 @@ import { universes } from './studio/catalog.js';
 import { createCamera, createGesture, fitFrame, mapPoint, nextInferenceAt, pinchRatio } from './studio/runtime.js';
 import { createRenderer } from './studio/renderer.js';
 import { createStrangeImpact } from './studio/strange-impact.js';
+import { canRecordClip, startClip } from './studio/clip-recorder.js';
 import { openTracking } from './studio/tracking.js';
 import { availableTryOn, captureFrame, tryOn } from './studio/try-on.js';
 import snapConfig from './studio/snap-config.js';
@@ -19,6 +20,8 @@ const retryButton = byId('retry');
 const castButton = byId('cast');
 const soundButton = byId('impact-sound');
 const fullscreenButton = byId('fullscreen');
+const recordButton = byId('record');
+const clipDownload = byId('clip-download');
 const status = byId('status');
 const universeButtons = [...document.querySelectorAll('[data-universe]')];
 const lensOutput = byId('lens-output');
@@ -59,6 +62,11 @@ let tryOnProvider;
 let tryOnJob;
 let windowedFullscreen = false;
 let fullscreenChanging = false;
+let clip;
+let clipSaving = false;
+let clipTime = 0;
+let clipUrl;
+const recordingAvailable = canRecordClip();
 const canCast = () => scene.mode !== 'looks' && (!scene.still || scene.still.ready);
 const isStrange = () => scene.profile.id === 'strange' && scene.mode === 'effects';
 
@@ -276,6 +284,7 @@ function syncLensVisibility() {
 }
 
 function stopCamera(message, error = false) {
+  clip?.stop();
   cameraAttempt++;
   opening = false;
   stopLens();
@@ -440,6 +449,73 @@ function syncFullscreen() {
   document.body.toggleAttribute('data-studio-fullscreen', windowedFullscreen);
   fullscreenButton.setAttribute('aria-pressed', String(active));
   fullscreenButton.textContent = active ? 'Thoát toàn màn hình' : 'Toàn màn hình';
+  if (!active) clip?.stop();
+  syncClipControls();
+}
+
+function syncClipControls() {
+  recordButton.hidden = !studio.hasAttribute('data-fullscreen') && !clip;
+  recordButton.disabled = !recordingAvailable || clipSaving;
+  if (!recordingAvailable) recordButton.title = 'Trình duyệt này chưa hỗ trợ quay clip.';
+  const recording = Boolean(clip && !clipSaving);
+  recordButton.setAttribute('aria-pressed', String(recording));
+  const label = clipSaving ? 'Đang lưu clip…' : recording ? 'Dừng quay' : 'Quay clip';
+  const clock = [Math.floor(clipTime / 60), clipTime % 60].map(part => String(part).padStart(2, '0')).join(':'); /* taste-skill-ignore: elapsed recording clock. */
+  recordButton.textContent = recording ? `${label} · ${clock}` : label;
+  recordButton.setAttribute('aria-label', label);
+}
+
+function toggleRecording() {
+  if (clip) {
+    clip.stop();
+    return;
+  }
+  if (!recordingAvailable || !studio.hasAttribute('data-fullscreen')) return;
+  const character = scene.profile.id;
+  function onError(error) {
+    clip = null;
+    clipSaving = false;
+    syncClipControls();
+    say(error.message || 'Không tạo được clip.', true);
+  }
+  let audio;
+  try {
+    audio = impact.captureAudio();
+    if (isStrange() && !audio?.track) throw new Error('Trình duyệt này chưa ghi được tiếng chưởng.');
+    clipTime = 0;
+    clip = startClip({
+      width: stage.clientWidth,
+      height: stage.clientHeight,
+      paint: renderer.paintClipFrame,
+      audio,
+      onStopping() {
+        clipSaving = true;
+        syncClipControls();
+      },
+      onTick(seconds) {
+        clipTime = seconds;
+        syncClipControls();
+      },
+      onFinish(blob, limited) {
+        clip = null;
+        clipSaving = false;
+        if (clipUrl) URL.revokeObjectURL(clipUrl);
+        clipUrl = URL.createObjectURL(blob);
+        clipDownload.href = clipUrl;
+        const extension = blob.type.startsWith('video/mp4') ? 'mp4' : 'webm';
+        clipDownload.download = `universe-ar-${character}-${Date.now()}.${extension}`;
+        clipDownload.hidden = false;
+        syncClipControls();
+        clipDownload.click();
+        say(limited ? 'Clip đã lưu khi đạt giới hạn bộ nhớ.' : 'Clip đã sẵn sàng. Anh có thể tải lại bằng nút Tải clip.');
+      },
+      onError,
+    });
+    syncClipControls();
+  } catch (error) {
+    audio?.close();
+    onError(error);
+  }
 }
 
 async function toggleFullscreen() {
@@ -464,6 +540,7 @@ soundButton.addEventListener('click', () => {
   updateLabels();
 });
 fullscreenButton.addEventListener('click', toggleFullscreen);
+recordButton.addEventListener('click', toggleRecording);
 document.addEventListener('fullscreenchange', syncFullscreen);
 document.addEventListener('keydown', event => {
   if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || byId('help-dialog').open) return;
@@ -543,10 +620,20 @@ captureButton.addEventListener('click', async () => {
 });
 
 window.addEventListener('pagehide', () => {
+  clip?.discard();
+  clip = null;
+  clipSaving = false;
+  if (clipUrl) {
+    URL.revokeObjectURL(clipUrl);
+    clipUrl = null;
+    clipDownload.hidden = true;
+  }
+  syncClipControls();
   resetTryOn();
   stopCamera();
 });
 document.addEventListener('visibilitychange', () => {
+  if (document.hidden) clip?.stop();
   if (!document.hidden) {
     if (scene.live && isStrange()) impact.prepareAudio();
     renderer.invalidate();

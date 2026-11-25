@@ -122,6 +122,15 @@ h3 { font-size: .875rem; font-weight: 620; }
 .button.primary { background: var(--accent); border-color: var(--accent); color: #21150c; }
 .button.primary:hover:not(:disabled) { background: #ffca99; }
 .button.capture { margin-left: auto; }
+.button.clip-download { text-decoration: none; }
+.button.record[aria-pressed="true"] { border-color: #d47879; }
+.button.record[aria-pressed="true"]::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f29a9b;
+}
 .button.try-on { background: #332648; border-color: #694b8a; color: #f4e5ff; }
 .button.try-on:hover:not(:disabled) { background: #483061; }
 kbd { color: #c3bbaf; border: 1px solid #535052; border-radius: 3px; font: .78rem ui-monospace, monospace; padding: 1px 4px; }

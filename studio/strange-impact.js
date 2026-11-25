@@ -63,6 +63,7 @@ export function createStrangeImpact(picture) {
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let context;
   let output;
+  let compressor;
   let noise;
   let resume;
   let motion;
@@ -70,18 +71,18 @@ export function createStrangeImpact(picture) {
   let muted = false;
   try { muted = localStorage.getItem('universe-strange-muted') === 'true'; } catch {}
 
-  function prepareAudio() {
-    if (muted || !Audio) return;
+  function prepareAudio(forRecording = false) {
+    if ((!forRecording && muted) || !Audio) return;
     if (!context) {
       try {
         context = new Audio();
-        const compressor = context.createDynamicsCompressor();
+        compressor = context.createDynamicsCompressor();
         compressor.threshold.value = -12;
         compressor.ratio.value = 6;
         compressor.attack.value = .006;
         compressor.release.value = .13;
         output = context.createGain();
-        output.gain.value = .82;
+        output.gain.value = muted ? 0 : .82;
         output.connect(compressor);
         compressor.connect(context.destination);
         noise = makeNoise(context);
@@ -114,6 +115,22 @@ export function createStrangeImpact(picture) {
       return muted;
     },
     prepareAudio,
+    captureAudio() {
+      prepareAudio(true);
+      if (!noise || !context.createMediaStreamDestination) return null;
+      const destination = context.createMediaStreamDestination();
+      compressor.connect(destination);
+      let closed = false;
+      return {
+        track: destination.stream.getAudioTracks()[0],
+        close() {
+          if (closed) return;
+          closed = true;
+          compressor.disconnect(destination);
+          for (const track of destination.stream.getTracks()) track.stop();
+        },
+      };
+    },
     reset,
     hit(power, direction) {
       if (document.hidden) return;

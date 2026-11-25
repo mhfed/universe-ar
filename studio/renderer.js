@@ -545,10 +545,53 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
     invalidate();
   }
 
+  function paintComposite(out, withMotion = false) {
+    const { video, live, lens } = getScene();
+    const { width, height } = out.canvas;
+    out.fillStyle = '#131316';
+    out.fillRect(0, 0, width, height);
+    const frame = fitFrame(width, height, w, h);
+    out.save();
+    out.beginPath();
+    out.rect(frame.x, frame.y, frame.width, frame.height);
+    out.clip();
+    out.translate(frame.x, frame.y);
+    out.scale(frame.width / w, frame.height / h);
+    if (withMotion) {
+      const transform = getComputedStyle(canvas.parentElement).transform;
+      if (transform !== 'none') {
+        const matrix = new DOMMatrix(transform);
+        out.translate(w / 2, h / 2);
+        out.transform(matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f);
+        out.translate(-w / 2, -h / 2);
+      }
+    }
+    if (lens?.capture.width && lens.capture.height) {
+      const fit = fitFrame(w, h, lens.capture.width, lens.capture.height);
+      out.drawImage(lens.capture, fit.x, fit.y, fit.width, fit.height);
+    } else if (live && video.readyState >= 2 && video.videoWidth) {
+      const fit = fitFrame(w, h, video.videoWidth, video.videoHeight);
+      out.save();
+      out.translate(w, 0);
+      out.scale(-1, 1);
+      out.drawImage(video, w - fit.x - fit.width, fit.y, fit.width, fit.height);
+      out.restore();
+    }
+    if (canvas.width && canvas.height) out.drawImage(canvas, 0, 0, w, h);
+    if (!strangeLight.hidden) {
+      out.globalCompositeOperation = 'screen';
+      out.drawImage(strangeLight, 0, 0, w, h);
+      out.globalCompositeOperation = 'source-over';
+    }
+    if (!strangeCanvas.hidden) out.drawImage(strangeCanvas, 0, 0, w, h);
+    out.restore();
+  }
+
   return {
     resize,
     invalidate,
     hasStrangeEffects,
+    paintClipFrame: out => paintComposite(out, true),
     strangeCast,
     trackStrange(hands, now) {
       if (!isStrangeScene()) return false;
@@ -610,28 +653,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, strangeLight, 
       const shot = document.createElement('canvas');
       shot.width = canvas.width;
       shot.height = canvas.height;
-      const out = shot.getContext('2d');
-      const { video, live, lens } = getScene();
-      out.fillStyle = '#131316';
-      out.fillRect(0, 0, shot.width, shot.height);
-      if (lens?.capture.width && lens.capture.height) {
-        const { x,y,width,height }=fitFrame(shot.width,shot.height,lens.capture.width,lens.capture.height);
-        out.drawImage(lens.capture,x,y,width,height);
-      } else if (live && video.readyState >= 2 && video.videoWidth) {
-        const frame = fitFrame(shot.width, shot.height, video.videoWidth, video.videoHeight);
-        out.save();
-        out.translate(shot.width, 0);
-        out.scale(-1, 1);
-        out.drawImage(video, shot.width - frame.x - frame.width, frame.y, frame.width, frame.height);
-        out.restore();
-      }
-      out.drawImage(canvas, 0, 0);
-      if (!strangeLight.hidden) {
-        out.globalCompositeOperation = 'screen';
-        out.drawImage(strangeLight, 0, 0, shot.width, shot.height);
-        out.globalCompositeOperation = 'source-over';
-      }
-      if (!strangeCanvas.hidden) out.drawImage(strangeCanvas, 0, 0, shot.width, shot.height);
+      paintComposite(shot.getContext('2d'));
       return new Promise((resolve, reject) => shot.toBlob(blob =>
         blob ? resolve(blob) : reject(new Error('Không tạo được ảnh PNG.')), 'image/png'));
     },
