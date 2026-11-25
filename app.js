@@ -1,5 +1,5 @@
 import { universes } from './studio/catalog.js';
-import { createCamera, createGesture, fitFrame, mapPoint, nextInferenceAt, pinchRatio } from './studio/runtime.js';
+import { createCamera, createGesture, nextInferenceAt, pinchRatio } from './studio/runtime.js';
 import { createRenderer } from './studio/renderer.js';
 import { createStrangeImpact } from './studio/strange-impact.js';
 import { canRecordClip, startClip } from './studio/clip-recorder.js';
@@ -22,13 +22,14 @@ const soundButton = byId('impact-sound');
 const fullscreenButton = byId('fullscreen');
 const recordButton = byId('record');
 const clipDownload = byId('clip-download');
+const clipFormat = byId('clip-format');
 const status = byId('status');
 const universeButtons = [...document.querySelectorAll('[data-universe]')];
 const lensOutput = byId('lens-output');
 const modeButtons = [...document.querySelectorAll('[data-mode]')];
 
 const selected = { avengers: universes.avengers[0], wibu: universes.wibu[0] };
-const scene = { mode: 'effects', profile: selected.avengers, video, live: false, result: null, pointer: null, lens: null, still: null };
+const scene = { mode: 'effects', profile: selected.avengers, video, live: false, result: null, pointer: null, lens: null, still: null, portrait: false };
 const impact = createStrangeImpact(byId('stage-picture'));
 const renderer = createRenderer(byId('effects'), () => scene, {
   strangeCanvas: byId('strange-effects'),
@@ -148,8 +149,7 @@ function consume(result, now, sampledAt) {
     ratio: pinchRatio(hand.points, video.videoWidth, video.videoHeight),
   })), now);
   if (action) {
-    const frame = fitFrame(stage.clientWidth, stage.clientHeight, video.videoWidth, video.videoHeight);
-    renderer.burst(mapPoint(action.points[8], frame));
+    renderer.burst(renderer.mapCameraPoint(action.points[8]));
   }
 }
 
@@ -208,7 +208,7 @@ async function startTracking(preferWorker = true) {
       lastMedia = media;
       const start = performance.now();
       try {
-        const trackFace = isStrange();
+        const trackFace = isStrange() || scene.portrait;
         const result = await engine.detect(video, now, trackFace);
         if (!signal.aborted && !document.hidden) consume(result, performance.now(), now);
         failures = 0;
@@ -450,11 +450,23 @@ function syncFullscreen() {
   fullscreenButton.setAttribute('aria-pressed', String(active));
   fullscreenButton.textContent = active ? 'Thoát toàn màn hình' : 'Toàn màn hình';
   if (!active) clip?.stop();
+  syncClipFormat();
   syncClipControls();
+}
+
+function syncClipFormat() {
+  const portrait = studio.hasAttribute('data-fullscreen') && clipFormat.value === 'portrait';
+  if (portrait === scene.portrait) return;
+  scene.portrait = portrait;
+  studio.toggleAttribute('data-portrait', portrait);
+  scene.pointer = null;
+  renderer.reset();
 }
 
 function syncClipControls() {
   recordButton.hidden = !studio.hasAttribute('data-fullscreen') && !clip;
+  clipFormat.hidden = !studio.hasAttribute('data-fullscreen');
+  clipFormat.disabled = !recordingAvailable || Boolean(clip);
   recordButton.disabled = !recordingAvailable || clipSaving;
   if (!recordingAvailable) recordButton.title = 'Trình duyệt này chưa hỗ trợ quay clip.';
   const recording = Boolean(clip && !clipSaving);
@@ -472,6 +484,7 @@ function toggleRecording() {
   }
   if (!recordingAvailable || !studio.hasAttribute('data-fullscreen')) return;
   const character = scene.profile.id;
+  const portrait = scene.portrait;
   function onError(error) {
     clip = null;
     clipSaving = false;
@@ -486,6 +499,7 @@ function toggleRecording() {
     clip = startClip({
       width: stage.clientWidth,
       height: stage.clientHeight,
+      portrait,
       paint: renderer.paintClipFrame,
       audio,
       onStopping() {
@@ -503,7 +517,8 @@ function toggleRecording() {
         clipUrl = URL.createObjectURL(blob);
         clipDownload.href = clipUrl;
         const extension = blob.type.startsWith('video/mp4') ? 'mp4' : 'webm';
-        clipDownload.download = `universe-ar-${character}-${Date.now()}.${extension}`;
+        const portraitTag = portrait ? '-9x16' : '';
+        clipDownload.download = `universe-ar-${character}${portraitTag}-${Date.now()}.${extension}`;
         clipDownload.hidden = false;
         syncClipControls();
         clipDownload.click();
@@ -541,6 +556,7 @@ soundButton.addEventListener('click', () => {
 });
 fullscreenButton.addEventListener('click', toggleFullscreen);
 recordButton.addEventListener('click', toggleRecording);
+clipFormat.addEventListener('change', syncClipFormat);
 document.addEventListener('fullscreenchange', syncFullscreen);
 document.addEventListener('keydown', event => {
   if (event.repeat || event.ctrlKey || event.metaKey || event.altKey || byId('help-dialog').open) return;

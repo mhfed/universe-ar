@@ -21,16 +21,18 @@
         <h1>Studio biến hình</h1>
         <span id="source" class="source" data-live="false"><i></i> <span id="source-label">Xem thử</span></span>
       </div>
-      <div id="stage" class="stage" aria-label="Khung xem trước hiệu ứng">
-        <div id="stage-picture" class="stage-picture">
-          <video id="video" autoplay muted playsinline hidden></video>
-          <div id="lens-output" hidden></div>
-          <canvas id="effects" aria-hidden="true"></canvas>
-          <canvas id="strange-light" aria-hidden="true" hidden></canvas>
-          <canvas id="strange-effects" aria-hidden="true" hidden></canvas>
+      <div class="stage-slot">
+        <div id="stage" class="stage" aria-label="Khung xem trước hiệu ứng">
+          <div id="stage-picture" class="stage-picture">
+            <video id="video" autoplay muted playsinline hidden></video>
+            <div id="lens-output" hidden></div>
+            <canvas id="effects" aria-hidden="true"></canvas>
+            <canvas id="strange-light" aria-hidden="true" hidden></canvas>
+            <canvas id="strange-effects" aria-hidden="true" hidden></canvas>
+          </div>
+          <div class="viewfinder" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+          <p id="stage-label" class="stage-label">Ấn Pháp Hộ Thân</p>
         </div>
-        <div class="viewfinder" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <p id="stage-label" class="stage-label">Ấn Pháp Hộ Thân</p>
       </div>
       <div class="stage-controls">
         <button id="camera" class="button primary" type="button" aria-pressed="false">Bật camera</button>
@@ -39,6 +41,10 @@
         <button id="capture" class="button capture" type="button">Chụp ảnh</button>
         <button id="impact-sound" class="button" type="button" aria-label="Âm thanh Doctor Strange" aria-pressed="true" hidden>Âm thanh bật</button>
         <button id="fullscreen" class="button" type="button" aria-pressed="false">Toàn màn hình</button>
+        <select id="clip-format" class="button clip-format" aria-label="Tỷ lệ clip" hidden>
+          <option value="original">Khung gốc</option>
+          <option value="portrait">Dọc 9:16</option>
+        </select>
         <button id="record" class="button record" type="button" aria-pressed="false" hidden>Quay clip</button>
         <a id="clip-download" class="button clip-download" download hidden>Tải clip</a>
       </div>

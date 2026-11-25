@@ -200,3 +200,21 @@ Verification:
 Release gate: commit, push main, run `npm run deploy` and repeat the two download paths on the public URL.
 
 Rework: 2 verification cycles to wait for face and hand landmarks before measuring light and to check track types independently of container stream order. Token usage: unavailable.
+
+## Vertical fullscreen clips
+
+Status: fullscreen recording now offers Khung gốc and Dọc 9:16. The portrait preview follows face and hand bounds and exports a fixed 720 × 1280 clip.
+
+Contract: the preview and recorder share a mirrored camera projection. Portrait mode pans and widens when a tracked hand moves away from the face. It contains the full sensor until face landmarks are available. Gesture detection measures in the fixed sensor projection, then maps a cast back into the portrait view so reframing cannot trigger a swipe. The ratio selector locks during recording. Existing sound, shake, light and download behavior remain part of the shared compositor.
+
+Changed: `app.js`, `index.html`, `styles.css`, `studio/{clip-recorder,portrait-frame,renderer}.js`, `test/portrait-frame.test.js`, `HANDOFF.md`.
+
+Verification:
+- `npm test` (30), `npm run build`, `git diff --check` and `node /Users/hieuminh/.agents/skills/design-taste-frontend/scripts/lint.mjs --app` passed.
+- `node /tmp/universe-portrait-qa.cjs` verified 720 × 1280 MP4 and WebM, preview bounds for MediaPipe face and hand points, ratio lock, shake, flash, audible spell audio and downloads. Chrome replayed the clips at 1×. Inspected desktop and 390 px screenshots and a decoded MP4 frame.
+- `REAL_PUSH=1 node /tmp/universe-portrait-qa.cjs` triggered a forward cast from a moving synthetic webcam fixture using genuine MediaPipe tracking and saved it in portrait with sound. Physical mobile browsers were not exercised.
+- `node /tmp/universe-clip-qa.cjs` and `GOJO_SMOKE=fixture node /tmp/universe-fashn-strange-regression.cjs` passed for the original frame and Gojo.
+
+Release gate: commit, push main, run `npm run deploy` and repeat both portrait downloads over HTTPS.
+
+Rework: 5 cycles for waiting for the resize, adding face padding, calibrating the gentle-shake assertion, waiting for fresh landmarks in the original clip smoke, and selecting the video stream by type. Token usage: unavailable.

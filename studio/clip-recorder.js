@@ -26,12 +26,12 @@ function openRecorder(stream, handlers) {
   }
 }
 
-export function startClip({ width, height, paint, audio, onStopping, onTick, onFinish, onError }) {
+export function startClip({ width, height, portrait, paint, audio, onStopping, onTick, onFinish, onError }) {
   const canvas = document.createElement('canvas');
   const scale = Math.min(1.5, 1280 / Math.max(width, height));
   const even = value => Math.max(2, Math.round(value * scale / 2) * 2);
-  canvas.width = even(width);
-  canvas.height = even(height);
+  canvas.width = portrait ? 720 : even(width);
+  canvas.height = portrait ? 1280 : even(height);
   const context = canvas.getContext('2d', { alpha: false });
   let stream;
   let recorder;
