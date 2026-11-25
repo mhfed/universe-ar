@@ -128,3 +128,22 @@ Verification:
 Release gate: push main, deploy with `npm run deploy` and repeat the offscreen browser smoke over HTTPS.
 
 Rework: 1 cycle to force a GPU readback in the benchmark after the first timing method returned zero. Token usage: unavailable.
+
+## Doctor Strange one-hand casts
+
+Status: implemented a forward palm push and four directional swipes. The forward cast expands from the palm with a hot front and secondary ring. Horizontal swipes throw a curved flame front and vertical swipes throw a narrower rising or descending pulse. The nearby shield briefly dims as the cast releases.
+
+Contract: a gesture consumes fresh MediaPipe samples in mirrored stage coordinates. Forward uses growth across both palm axes with limited planar travel. Swipes use dominant-axis displacement, speed and a stable palm size. Open fingers, retraction, freshness and cooldown distinguish casts from shield poses, pinch and jitter. F casts forward and Shift + arrow keys preview a direction. Casts share the HDR bloom pass and clipped bounds. The two-hand Grand Seal and its original waves remain available.
+
+Changed: `app.js`, `index.html`, `studio/{strange-gesture,arcane,arcane-webgl,renderer}.js`, `test/strange-gesture.test.js`, `HANDOFF.md`.
+
+Verification:
+- `npm test` (23), `npm run build` and `git diff --check` passed.
+- `node /tmp/universe-strange-casts.cjs` verified all five gesture directions with deterministic landmarks in Chrome, plus keyboard previews, mobile layout, export and Gojo. The 3.33 s clip rendered 201 WebGL frames and played 101 video frames at 1×.
+- `REAL_TRACKING=1 node /tmp/universe-strange-casts.cjs` passed with real MediaPipe on the zooming synthetic webcam fixture. The same command with `REAL_TRACKING_DIRECTION=left`, `right`, `up` and `down` passed on corresponding moving fixtures. Inspected forward, horizontal and vertical frames. Physical webcams were not exercised.
+- `node /tmp/universe-strange-casts-perf.cjs` compared the existing shield, Grand Seal and wave frames with `83276f4`. They matched pixel for pixel with the new casts idle. `CHECK_OFFSCREEN=1 node /tmp/universe-arcane-qa.cjs` and `node /tmp/universe-arcane-two-hands.cjs` passed.
+- `GOJO_SMOKE=fixture node /tmp/universe-fashn-strange-regression.cjs` passed with recorded FASHN output.
+
+Release gate: commit, push main, run `npm run deploy` and repeat the five-direction smoke over HTTPS.
+
+Rework: 3 cycles for push rearming after retraction, keeping directional heads visible near frame edges, and reducing shield glow during release. Token usage: unavailable.

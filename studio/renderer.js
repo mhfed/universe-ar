@@ -4,6 +4,7 @@ import { drawGojoJacket } from './gojo-outfit.js';
 import { createGojoEffects } from './gojo-power.js';
 import { resolveGojoEnergy } from './gojo-geometry.js';
 import { createArcaneEngine } from './arcane.js';
+import { createStrangeGesture, STRANGE_DIRECTIONS } from './strange-gesture.js';
 
 const TAU = Math.PI * 2;
 const circle = (ctx, x, y, r) => {
@@ -214,6 +215,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
   let arcaneHold = false;
   let arcaneSizeDirty = true;
   let stageVisible = true;
+  const strangeGesture = createStrangeGesture();
   const noHand = { visible: false };
 
   function isStrangeScene() {
@@ -235,6 +237,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
     new IntersectionObserver(([entry]) => {
       stageVisible = entry.isIntersecting;
       if (stageVisible) invalidate();
+      else strangeGesture.reset();
     }).observe(canvas);
   }
 
@@ -248,6 +251,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
   strangeCanvas.addEventListener('webglcontextrestored', () => {
     arcane = undefined;
     arcaneSizeDirty = true;
+    strangeGesture.reset();
     invalidate();
   });
   reduce.addEventListener('change', () => {
@@ -310,6 +314,7 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
     canvas.height = Math.round(h * dpr);
     ctx.setTransform(canvas.width / w, 0, 0, canvas.height / h, 0, 0);
     arcaneSizeDirty = true;
+    strangeGesture.reset();
     invalidate();
   }
 
@@ -447,7 +452,12 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
         const age = (now - burst.at) / 1000;
         if (age >= .98) burst = null;
         else {
-          const center = burst.point ?? pointer ?? (demo || still ? { x:demoX,y:demoY } : { x:w*.5,y:h*.55 });
+          let center = burst.point ?? pointer ?? (demo || still ? { x:demoX,y:demoY } : { x:w*.5,y:h*.55 });
+          if (burst.direction) {
+            const [dx, dy] = STRANGE_DIRECTIONS[burst.direction];
+            const advance = Math.min(w, h) * age;
+            center = { x: center.x + dx * advance, y: center.y + dy * advance };
+          }
           if (cinematic) {
             gojoEffects.cast(center,r,age,t,effectScene);
           } else {
@@ -488,10 +498,32 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
     if (!request && !document.hidden && !pauseOffscreen()) request = requestAnimationFrame(draw);
   }
 
+  function strangeCast(direction, point) {
+    if (!isStrangeScene()) return;
+    if (hasStrangeEffects()) {
+      arcane.cast(direction, point);
+      arcaneAnimating = true;
+    } else {
+      burst = { point, direction, at: performance.now() };
+    }
+    invalidate();
+  }
+
   return {
     resize,
     invalidate,
     hasStrangeEffects,
+    strangeCast,
+    trackStrange(hands, now) {
+      if (!isStrangeScene()) return false;
+      const { video } = getScene();
+      if (!pauseOffscreen() && video.videoWidth && video.videoHeight) {
+        const frame = fitFrame(w, h, video.videoWidth, video.videoHeight);
+        const cast = strangeGesture.update(hands ?? [], frame, now);
+        if (cast) strangeCast(cast.direction, cast);
+      }
+      return hasStrangeEffects();
+    },
     holdStrange(held) {
       arcaneHold = held;
       invalidate();
@@ -517,15 +549,14 @@ export function createRenderer(canvas, getScene, { strangeCanvas, onStrangeEleme
       gojoPalms=[];
       fusion = 0;
       arcane?.reset();
+      strangeGesture.reset();
       arcaneHold = false;
       arcaneAnimating = false;
       invalidate();
     },
     burst(point) {
-      if (hasStrangeEffects()) {
-        arcane.cast();
-        arcaneAnimating = true;
-        invalidate();
+      if (isStrangeScene()) {
+        strangeCast('forward', point);
         return;
       }
       const origin=getScene().profile.id==='gojo' ? gojoPalms.find(p=>p.tone==='purple') ?? point : point;

@@ -50,6 +50,9 @@ uniform float u_grandSpin;
 uniform vec4 u_waves[6];
 uniform vec3 u_waveDetails[6]; // (noise scale, amplitude, original slot)
 uniform int u_waveCount;
+uniform vec4 u_castGeometry[3]; // (headX, headY, width, brightness)
+uniform vec4 u_castMotion[3];   // (axisX, axisY, trail, age)
+uniform int u_castCount;
 
 const float PI = 3.14159265359;
 const float TAU = 6.28318530718;
@@ -336,6 +339,45 @@ float evalGrandMandala(vec2 fragPx, out float grandHue) {
   return (energy + corePin + godRays) * fusion;
 }
 
+float evalCast(vec2 fragPx, vec4 shape, vec4 motion) {
+  vec2 delta = fragPx - shape.xy;
+  float width = shape.z;
+  float trail = motion.z;
+  float age = motion.w;
+  if (motion.x == 0.0 && motion.y == 0.0) {
+    float radius = length(delta);
+    if (radius > width + trail * 1.5) return 0.0;
+    float ignition = exp(-radius / max(4.0, trail * .34)) * (1.0 - smoothstep(.02, .25, age));
+    float band = (radius - width) / trail;
+    if (abs(band) > 1.5) return ignition * shape.w * 2.4;
+    float angle = atan(delta.y, delta.x);
+    float eddy = fbm(vec2(angle * 10.0, age * 14.0 - radius * .038));
+    float front = band + (eddy - .5) * .42;
+    float rim = exp(-abs(front) * 12.0) * (1.5 + eddy * 3.6);
+    float wake = exp(-abs(front + .39) * 4.0) * eddy * 1.35;
+    float echo = exp(-abs(front + .68) * 13.0) * (.22 + eddy * .72);
+    return (rim + wake + echo + ignition * 2.4) * shape.w;
+  }
+
+  vec2 axis = motion.xy;
+  float along = dot(delta, axis);
+  float side = dot(delta, vec2(-axis.y, axis.x)) / width;
+  if (abs(side) > 1.4 || along < -trail || along > width * .72) return 0.0;
+
+  float vertical = abs(axis.y);
+  float n = fbm(vec2(along * .056 - age * 9.0, side * 3.4));
+  float boundary = along + side * side * width * mix(.68, .36, vertical);
+  float edge = boundary + (n - .5) * width * .20;
+  float mask = 1.0 - smoothstep(.44, 1.31, abs(side));
+  float rim = exp(-abs(edge) / max(1.15, width * .037)) * (2.7 + n * 2.7) * mask;
+  float envelope = exp(-abs(edge) / max(2.0, width * .24)) * mask * n * 1.7;
+  float wake = max(0.0, 1.0 + along / trail) * (1.0 - smoothstep(-width * .14, width * .14, along));
+  float currents = exp(-abs(sin(side * mix(14.0, 21.0, vertical) + n * 3.3 + along / width * 3.4)) * 4.7);
+  float veins = pow(wake, 1.65) * currents * mask * (.35 + n * 2.1);
+  float point = vertical * exp(-abs(edge) / max(2.0, width * .31) - abs(side) * 8.2) * 2.8;
+  return (rim + envelope + veins + point) * shape.w;
+}
+
 void main() {
   // Pixel coordinates with Y=0 at top to match screen space
   vec2 fragPx = vec2(v_uv.x * u_res.x, (1.0 - v_uv.y) * u_res.y);
@@ -390,6 +432,11 @@ void main() {
         hdrColor += mapElementalFire(waveEnergy, u_element, 0.0);
       }
     }
+  }
+
+  for (int i = 0; i < 3; i++) {
+    if (i >= u_castCount) break;
+    hdrColor += mapElementalFire(evalCast(fragPx, u_castGeometry[i], u_castMotion[i]), u_element, 0.0);
   }
 
   if (u_hdrEncode > 1.5) {
@@ -670,6 +717,9 @@ export function createArcaneWebGLRenderer(canvas) {
     waves: gl.getUniformLocation(sceneProg, 'u_waves'),
     waveDetails: gl.getUniformLocation(sceneProg, 'u_waveDetails'),
     waveCount: gl.getUniformLocation(sceneProg, 'u_waveCount'),
+    castCount: gl.getUniformLocation(sceneProg, 'u_castCount'),
+    castGeometry: gl.getUniformLocation(sceneProg, 'u_castGeometry'),
+    castMotion: gl.getUniformLocation(sceneProg, 'u_castMotion'),
   };
 
   const uSpark = {
@@ -702,11 +752,11 @@ export function createArcaneWebGLRenderer(canvas) {
   const waveDetails = new Float32Array(18);
   let left, top, right, bottom;
 
-  function extendSceneBounds(x, y, radius) {
-    left = Math.min(left, x - radius);
-    right = Math.max(right, x + radius);
-    top = Math.min(top, y - radius);
-    bottom = Math.max(bottom, y + radius);
+  function extendSceneBounds(x, y, radiusX, radiusY = radiusX) {
+    left = Math.min(left, x - radiusX);
+    right = Math.max(right, x + radiusX);
+    top = Math.min(top, y - radiusY);
+    bottom = Math.max(bottom, y + radiusY);
   }
 
   function projectWaves(waves) {
@@ -839,6 +889,7 @@ export function createArcaneWebGLRenderer(canvas) {
     top = fboH;
     right = bottom = 0;
     const waveCount = projectWaves(params.waves);
+    const castCount = params.castCount ?? 0;
     // The grand seal has full-screen god rays. Hand shaders are zero outside their cutoff.
     if (params.grand[3] > 0.01) {
       left = top = 0;
@@ -848,6 +899,22 @@ export function createArcaneWebGLRenderer(canvas) {
       for (let i = 0; i < 12; i += 4) {
         if (params.handPos[i + 3] <= 0.01 && params.handOri[i + 3] <= 0.01) continue;
         extendSceneBounds(params.handPos[i], params.handPos[i + 1], params.handPos[i + 2] * 1.65 + 1);
+      }
+      for (let i = 0; i < castCount * 4; i += 4) {
+        const x = params.castGeometry[i];
+        const y = params.castGeometry[i + 1];
+        const width = params.castGeometry[i + 2];
+        const dx = params.castMotion[i];
+        const dy = params.castMotion[i + 1];
+        const trail = params.castMotion[i + 2];
+        if (dx || dy) {
+          const across = width * 1.4 + 1;
+          const along = (width * .72 + trail) * .5 + 1;
+          const center = (width * .72 - trail) * .5;
+          extendSceneBounds(x + dx * center, y + dy * center, dx ? along : across, dy ? along : across);
+        } else {
+          extendSceneBounds(x, y, width + trail * 1.5 + 1);
+        }
       }
     }
 
@@ -871,6 +938,11 @@ export function createArcaneWebGLRenderer(canvas) {
     if (waveCount) {
       gl.uniform4fv(uScene.waves, waveGeometry, 0, waveCount * 4);
       gl.uniform3fv(uScene.waveDetails, waveDetails, 0, waveCount * 3);
+    }
+    gl.uniform1i(uScene.castCount, castCount);
+    if (castCount) {
+      gl.uniform4fv(uScene.castGeometry, params.castGeometry, 0, castCount * 4);
+      gl.uniform4fv(uScene.castMotion, params.castMotion, 0, castCount * 4);
     }
 
     const x0 = Math.max(0, Math.floor(left / fboW * fboScene.w));

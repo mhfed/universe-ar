@@ -57,9 +57,9 @@ function say(message, error = false) {
 }
 
 function guidance() {
-  if (renderer.hasStrangeEffects()) return scene.live
-    ? 'Xòe tay mở khiên, nắm tay tạo xoáy. Đưa hai tay lại gần để hợp trận.'
-    : 'Di chuột để mở khiên, chạm giữ để mở đại trận. Bấm F để tung sóng xung kích.';
+  if (scene.profile.id === 'strange' && scene.mode === 'effects') return scene.live
+    ? 'Xòe một tay. Đẩy về camera hoặc vung lên, xuống, trái, phải để tung chưởng.'
+    : 'Bấm F để chưởng thẳng, Shift + phím mũi tên để chưởng theo hướng. Giữ trên khung để mở đại trận.';
   if (scene.mode === 'gojo') {
     if (!scene.live) return 'Ảnh mẫu thay áo bằng FASHN. Bật camera để chụp ảnh của bạn.';
     return 'Giữ mặt, vai và thân trên trong khung. Đưa tay lại gần để hợp nhất năng lượng.';
@@ -116,7 +116,7 @@ function stopTracking() {
 function consume(result, now) {
   scene.result = { ...result, received: now };
   renderer.markResult();
-  if (renderer.hasStrangeEffects()) return;
+  if (renderer.trackStrange(result.hands, now)) return;
   if (!canCast() || !result.hands?.length) {
     if (canCast()) gesture.update([], now);
     return;
@@ -419,6 +419,14 @@ document.addEventListener('keydown', event => {
   if (event.code === 'KeyF') {
     cast();
     return;
+  }
+  if (event.shiftKey && scene.profile.id === 'strange' && scene.mode === 'effects') {
+    const direction = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[event.code];
+    if (direction) {
+      event.preventDefault();
+      renderer.strangeCast(direction, scene.pointer);
+      return;
+    }
   }
   if (!renderer.hasStrangeEffects()) return;
   if (event.code === 'KeyG') renderer.toggleStrangeSeal();

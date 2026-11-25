@@ -2,6 +2,7 @@
 
 import { createArcaneWebGLRenderer } from './arcane-webgl.js';
 import { clamp } from './runtime.js';
+import { STRANGE_DIRECTIONS } from './strange-gesture.js';
 
 const ARCANE_ELEMENT_ORDER = ['eldritch', 'timestone', 'chaos', 'cosmic'];
 
@@ -55,6 +56,9 @@ export function createArcaneEngine(canvas, onElementChange) {
   const handOriBuf = new Float32Array(12); // 3 * vec4
   const grandBuf = new Float32Array(4);
   const wavesBuf = new Float32Array(24);   // 6 * vec4
+  const castGeometry = new Float32Array(12);
+  const castMotion = new Float32Array(12);
+  const casts = [];
   const sparkVortices = [];
 
   const engine = {
@@ -212,6 +216,66 @@ export function createArcaneEngine(canvas, onElementChange) {
 
   }
 
+  function cast(direction = 'forward', point) {
+    const [dx, dy] = STRANGE_DIRECTIONS[direction];
+    const hand = [...engine.actors.values()].find(actor => actor.active);
+    const x = point?.x ?? hand?.x ?? engine.viewW * .5;
+    const y = point?.y ?? hand?.y ?? engine.viewH * .55;
+    const extent = Math.min(engine.viewW, engine.viewH);
+    const scale = clamp(point?.scale ?? hand?.palmScale ?? extent * .13, extent * .055, extent * .22);
+    const forward = direction === 'forward';
+    casts.push({ x, y, dx, dy, scale, age: 0, duration: forward ? .72 : .58 });
+    if (casts.length > 3) casts.shift();
+
+    const [red, green, blue] = engine.theme.sparkRgb;
+    const count = forward ? 125 : 90;
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const spread = Math.random() * scale * .46;
+      const speed = 3 + Math.random() * 16;
+      emitSpark(x + Math.cos(a) * spread, y + Math.sin(a) * spread,
+        dx * 9 + Math.cos(a) * speed, dy * 9 + Math.sin(a) * speed,
+        .22 + Math.random() * .55, red, green, blue, 1);
+    }
+  }
+
+  function updateCasts(dt) {
+    for (let i = casts.length - 1; i >= 0; i--) {
+      const cast = casts[i];
+      cast.age += dt;
+      if (cast.age >= cast.duration) casts.splice(i, 1);
+    }
+
+    const extent = Math.min(engine.viewW, engine.viewH);
+    for (let i = 0; i < casts.length; i++) {
+      const { x, y, dx, dy, scale, age, duration } = casts[i];
+      const progress = age / duration;
+      const brightness = (1 - progress) ** .7 * 3.5;
+      let headX = x;
+      let headY = y;
+      let width = scale * .24 + progress ** 1.62 * extent * 1.12;
+      let trail = scale * (.22 + .56 * progress);
+      if (dx || dy) {
+        const toEdge = dx ? (dx > 0 ? engine.viewW - x : x) : (dy > 0 ? engine.viewH - y : y);
+        const distance = clamp(toEdge + scale * .55, extent * .23, extent * .92);
+        const advance = distance * progress * (1.52 - .52 * progress);
+        headX += dx * advance;
+        headY += dy * advance;
+        width = scale * (dx ? 1.02 : .54) * (1 + progress * .38);
+        trail = scale * (dx ? 2.6 : 4.1) * (.64 + progress * .55);
+      }
+      const offset = i * 4;
+      castGeometry[offset] = headX;
+      castGeometry[offset + 1] = headY;
+      castGeometry[offset + 2] = width;
+      castGeometry[offset + 3] = brightness;
+      castMotion[offset] = dx;
+      castMotion[offset + 1] = dy;
+      castMotion[offset + 2] = trail;
+      castMotion[offset + 3] = progress;
+    }
+  }
+
   // ==========================================================================
   // Hand & Mouse Pose Ingestion
   // ==========================================================================
@@ -349,6 +413,7 @@ export function createArcaneEngine(canvas, onElementChange) {
     const dtSec = clamp((now - engine.lastFrameAt) / 1000, 0.004, 0.05);
     engine.lastFrameAt = now;
     const dtScale = dtSec * 60.0;
+    updateCasts(dtSec);
 
     engine.timeSec += dtSec;
 
@@ -434,7 +499,14 @@ export function createArcaneEngine(canvas, onElementChange) {
 
     // Sparks tearing off single-hand shields
     for (const a of activeActors) {
-      const vis = a.shieldOpen * singleFade;
+      let release = 1;
+      for (const cast of casts) {
+        if (cast.age < .24 && Math.hypot(a.x - cast.x, a.y - cast.y) < cast.scale * .85) {
+          release = Math.min(release, .26 + .74 * (cast.age / .24) ** 2);
+        }
+      }
+      const vis = a.shieldOpen * singleFade * release;
+      a.shieldVisibility = vis;
       if (vis > 0.25) {
         const R = a.palmScale * 1.68 * vis;
         emitRingWeldingSparks(a.x, a.y, R, R * a.tiltRatio, 1, 7, 5.4);
@@ -579,7 +651,7 @@ export function createArcaneEngine(canvas, onElementChange) {
       handPosBuf[i * 4 + 0] = a.x;
       handPosBuf[i * 4 + 1] = a.y;
       handPosBuf[i * 4 + 2] = R;
-      handPosBuf[i * 4 + 3] = a.active ? a.shieldOpen * singleFade : 0.0;
+      handPosBuf[i * 4 + 3] = a.active ? a.shieldVisibility : 0.0;
 
       handOriBuf[i * 4 + 0] = engine.timeSec * 1.45 + a.wristAngle;
       handOriBuf[i * 4 + 1] = a.knuckleAngle;
@@ -611,12 +683,15 @@ export function createArcaneEngine(canvas, onElementChange) {
         grand: grandBuf,
         grandSpin: engine.timeSec * 1.05 + engine.wheelAngle,
         waves: wavesBuf,
+        castCount: casts.length,
+        castGeometry,
+        castMotion,
       },
       outBuf,
       gpuSparkCount
     );
 
-    return hasLivingSparks || engine.prismWaves.length > 0 || engine.fusionProgress > 0;
+    return hasLivingSparks || casts.length > 0 || engine.prismWaves.length > 0 || engine.fusionProgress > 0;
   }
 
   return {
@@ -635,13 +710,12 @@ export function createArcaneEngine(canvas, onElementChange) {
       engine.viewH = h;
       return glRenderer.resize(w, h, dpr);
     },
-    cast() {
-      launchPrismWaveVolley(engine.viewW * 0.5, engine.viewH * 0.5, true);
-    },
+    cast,
     reset() {
       engine.actors.clear();
       spLife.fill(0);
       engine.prismWaves.length = 0;
+      casts.length = 0;
       engine.forceGrandSeal = false;
       engine.fusionProgress = 0;
       engine.wasFused = false;
